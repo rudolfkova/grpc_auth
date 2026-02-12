@@ -1,0 +1,4 @@
+.PHONY: build
+
+	build-auth:
+		go build -v ./auth-service/cmd/auth-service
