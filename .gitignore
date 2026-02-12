@@ -1,3 +1,4 @@
 *exe
 .cursor/
 auth-service/config/*toml
+.env

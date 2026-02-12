@@ -1,0 +1,5 @@
+database_url = "host=localhost dbname=grpc_auth user=user password=password sslmode=disable"
+bind_addr = ":8080"
+access_token-ttl = "15m"
+refresh_token_ttl = "168h"
+log_level = "DEBUG"

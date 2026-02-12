@@ -1,4 +1,26 @@
 .PHONY: build
+build-auth:
+	go build -v ./auth-service/cmd/auth-service
 
-	build-auth:
-		go build -v ./auth-service/cmd/auth-service
+.PHONY: lint
+lint-auth:
+	golangci-lint run ./auth-service/...
+
+.PHONY: migrate
+migrate-up:
+	migrate -path auth-service/migrations -database "$(DB_DSN)" up
+
+.PHONY: gen-auth
+gen-auth:
+	protoc -I auth-service \
+	  --go_out=auth-service --go_opt=paths=source_relative \
+	  --go-grpc_out=auth-service --go-grpc_opt=paths=source_relative \
+	  auth-service/proto/auth/v1/auth.proto
+
+.PHONY: tidy
+tidy-auth:
+	cd auth-service && go mod tidy
+
+.PHONY: gofmt
+gofmt:
+	gofmt -w -s .
