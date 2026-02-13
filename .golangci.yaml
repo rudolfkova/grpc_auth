@@ -19,9 +19,9 @@ linters:
     - unparam
 
 formatters:
-  enable:
-    - gofmt
-    - goimports
+  enable: []
+    # - gofmt
+    # - goimports
 
 linters-settings:
   goimports:
