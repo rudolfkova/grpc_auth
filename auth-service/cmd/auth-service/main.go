@@ -2,11 +2,14 @@
 package main
 
 import (
-	"auth/internal/app/server"
+	"auth/internal/app"
+	"auth/internal/config"
+	"auth/internal/infrastucture/sqlstore"
 	"flag"
 	"log"
 
 	"github.com/BurntSushi/toml"
+	_ "github.com/lib/pq"
 )
 
 var (
@@ -14,19 +17,27 @@ var (
 )
 
 func init() {
-	flag.StringVar(&configPath, "config-path", "config/config.toml", "path to config file")
-
+	flag.StringVar(&configPath, "config-path", "config.toml", "path to config file")
 }
 
 func main() {
-	cfg := server.NewConfig()
+	flag.Parse()
+
+	cfg := config.NewConfig()
 	_, err := toml.DecodeFile(configPath, cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := server.Start(cfg); err != nil {
+	_, err = sqlstore.NewDB(cfg.DatabaseURL)
+	if err != nil {
 		log.Fatal(err)
 	}
+
+	logger := config.NewLogger(cfg)
+
+	application := app.New(logger, cfg.BindAddr)
+
+	application.GRPCServer.MustRun()
 
 }

@@ -2,6 +2,11 @@
 build-auth:
 	go build -v ./auth-service/cmd/auth-service
 
+
+.PHONY: start
+start-auth:
+	./auth-service.exe -config-path=config.toml
+
 .PHONY: lint
 lint-auth:
 	golangci-lint run ./auth-service/...

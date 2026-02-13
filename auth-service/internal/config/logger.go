@@ -1,4 +1,5 @@
-package server
+// Package config ...
+package config
 
 import (
 	"log/slog"

@@ -1,7 +1,7 @@
 // Package usecase ...
 package usecase
 
-import "auth/internal/app/repository"
+import "auth/internal/repository"
 
 // AuthUseCase ...
 type AuthUseCase struct {

@@ -2,7 +2,7 @@
 package sqlstore
 
 import (
-	"auth/internal/app/domain"
+	"auth/internal/domain"
 	"context"
 	"database/sql"
 )
@@ -21,5 +21,7 @@ func NewSessionRepository(db *sql.DB) *SessionRepository {
 
 // SessionByID ...
 func (r *SessionRepository) SessionByID(ctx context.Context, id int) (domain.Session, error) {
+	_ = ctx
+	_ = id
 	return domain.Session{}, nil
 }

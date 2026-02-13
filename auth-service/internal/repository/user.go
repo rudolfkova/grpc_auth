@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"auth/internal/app/domain"
+	"auth/internal/domain"
 	"context"
 )
 
