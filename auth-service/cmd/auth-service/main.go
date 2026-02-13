@@ -4,7 +4,7 @@ package main
 import (
 	"auth/internal/app"
 	"auth/internal/config"
-	"auth/internal/infrastucture/sqlstore"
+	"auth/internal/infrastructure/sqlstore"
 	"flag"
 	"log"
 

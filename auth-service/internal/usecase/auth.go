@@ -5,14 +5,14 @@ import "auth/internal/repository"
 
 // AuthUseCase ...
 type AuthUseCase struct {
-	users    repository.UserRepository
-	sessions repository.SessionRepository
+	Users    repository.UserRepository
+	Sessions repository.SessionRepository
 }
 
 // NewAuthUseCase ...
 func NewAuthUseCase(users repository.UserRepository, sessions repository.SessionRepository) *AuthUseCase {
 	return &AuthUseCase{
-		users:    users,
-		sessions: sessions,
+		Users:    users,
+		Sessions: sessions,
 	}
 }

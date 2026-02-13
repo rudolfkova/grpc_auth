@@ -18,14 +18,7 @@ service AuthService {
   rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
 }
 
-message IsAdminRequest {
-  int64 user_id = 1; // User ID to validate.
-}
-
-message IsAdminResponse {
-  bool is_admin = 1;  // Indicates whether the user is an admin.
-}
-
+// Register ...
 message RegisterRequest {
   string email = 1; // Email of the user to register.
   string password = 2; // Password of the user to register.
@@ -35,6 +28,7 @@ message RegisterResponse {
   int64 user_id = 1; // User ID of the registered user.
 }
 
+// Login ...
 message LoginRequest {
   string email = 1; // Email of the user to login.
   string password = 2; // Password of the user to login.
@@ -48,6 +42,16 @@ message LoginResponse {
   google.protobuf.Timestamp refresh_expires_at = 4; // Когда истекает refresh.
 }
 
+// IsAdmin ...
+message IsAdminRequest {
+  int64 user_id = 1; // User ID to validate.
+}
+
+message IsAdminResponse {
+  bool is_admin = 1;  // Indicates whether the user is an admin.
+}
+
+// Logout ...
 message LogoutRequest {
   string refresh_token = 1; // Какую сессию гасим.
 }
@@ -56,6 +60,7 @@ message LogoutResponse {
   bool success = 1; // Indicates whether the logout was successful.
 }
 
+// Refresh ...
 message RefreshTokenRequest {
   string refresh_token = 1; // Текущий refresh-токен.
 }
