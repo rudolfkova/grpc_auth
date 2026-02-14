@@ -20,10 +20,12 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 }
 
 // SaveUser ...
-func (r *UserRepository) SaveUser(ctx context.Context, email string, passHash []byte) {
+func (r *UserRepository) SaveUser(ctx context.Context, email string, passHash []byte) error {
 	_ = ctx
 	_ = email
 	_ = passHash
+
+	return nil
 }
 
 // UserByEmail ...

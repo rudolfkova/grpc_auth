@@ -1,9 +1,13 @@
 // Package domain ...
 package domain
 
-// Session ...
-type Session struct {
-	ID     int
-	UserID int
-	AppID  int
+import "time"
+
+// App ...
+type App struct {
+	ID               int
+	UserID           int
+	AppID            int
+	RefreshExpiresAt time.Time
+	Status           string
 }

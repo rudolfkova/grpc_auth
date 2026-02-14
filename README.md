@@ -2,107 +2,100 @@
 
 Учебный микросервис аутентификации и авторизации на Go + gRPC.
 
-Проект собирается по мотивам `sso` из GolangLessons, с упором на чистую архитектуру: отдельные слои домена, use‑case, инфраструктуры и транспорта.
+Собран по мотивам SSO из GolangLessons. Чистая архитектура: domain → usecase → транспорт (gRPC); репозитории и провайдер токенов — интерфейсы, реализации в infrastructure/provider.
+
+---
 
 ### Структура репозитория
 
-- **`auth-service/cmd/auth-service`** — entrypoint сервиса:
-  - парсит `-config-path`;
-  - читает `config.toml` через `BurntSushi/toml`;
-  - инициализирует logger на `slog`;
-  - сейчас только открывает соединение с БД (результат не используется) и стартует gRPC‑сервер.
+- **`auth-service/cmd/auth-service`** — точка входа:
+  - флаг `-config-path`, чтение `config.toml` (BurntSushi/toml);
+  - логгер (slog), подключение к БД через `sqlstore.NewDB`;
+  - создание `AuthUseCase` и передача в `app.New`, запуск gRPC.
+  - **Важно:** в main пока не собран полный граф зависимостей (репозитории, TokenProvider, TTL, секрет) — usecase создаётся пустым; для рабочего запуска нужно провести DB → репозитории → провайдер токенов → usecase и передать в app.
+
 - **`auth-service/internal/app`** — композиция приложения:
-  - здесь должен собираться граф зависимостей: `sql.DB` → репозитории → usecase → gRPC‑handler;
-  - пока оставлены `TODO` на инициализацию хранилища и auth‑сервиса.
+  - принимает логгер, порт и `*usecase.AuthUseCase`;
+  - создаёт gRPC-обёртку и возвращает `App` с `GRPCServer`.
+  - слой не знает про БД и sqlstore — зависимости передаются снаружи.
+
 - **`auth-service/internal/app/grpc`** — обёртка над `grpc.Server`:
-  - регистрирует `AuthService` хендлер;
-  - умеет запускаться и останавливаться с логированием.
-- **`auth-service/internal/domain`** — доменная модель:
-  - `User` (id, email, passHash);
-  - `Session` (id, userID, appID) — упрощённое представление сессии, детали (`refresh_token`, `status` и т.п.) лежат в БД.
+  - регистрирует `AuthService` (интерфейс `grpcauth.Auth`);
+  - `Run` / `MustRun`, `Stop` с логированием.
+
+- **`auth-service/internal/domain`** — доменные модели:
+  - `User` (ID, Email, PassHash);
+  - `Token` (AccessToken, RefreshToken — строки; AccessExpireAt, RefreshExpireAt — time.Time);
+  - `App` (в domain/session.go) — по смыслу сессия: ID, UserID, AppID, RefreshExpiresAt, Status. Имя типа не совпадает с сутью (сессия), можно переименовать в `Session` для ясности.
+
 - **`auth-service/internal/repository`** — интерфейсы хранилищ:
-  - `UserRepository` (создание пользователя, поиск по email, проверка админа);
-  - `SessionRepository` (пока только `SessionByID`).
-- **`auth-service/internal/infrastucture/sqlstore`** — реализация репозиториев поверх PostgreSQL:
-  - `NewDB` — создание и ping `*sql.DB`;
-  - `UserRepository`, `SessionRepository` — заглушки, которые ещё нужно реализовать (сейчас только заглушки с `_ = ctx` и т.п.).
-- **`auth-service/internal/grpc/auth`** — gRPC‑слой:
-  - регистрация сервера;
-  - методы `Register`, `Login`, `IsAdmin`, `Logout`, `RefreshToken` пока `panic("implement me")`.
-- **`auth-service/internal/config`** — конфигурация и логгер:
-  - `Config` с полями `DatabaseURL`, `BindAddr`, TTL токенов, `LogLevel`;
-  - `NewLogger` — JSON‑логгер на `slog` c уровнем из конфига.
-- **`auth-service/migrations`** — миграции PostgreSQL (через `migrate`):
-  - таблицы `users` и `sessions` под refresh‑токены, индексы под частые запросы.
-- **`auth-service/proto/auth/v1`** — gRPC‑контракт и сгенерированный код.
-- **корень репо**:
-  - `Makefile` с целями `build-auth`, `start-auth`, `lint-auth`, `migrate-up`, `gen-auth`, `tidy-auth`, `gofmt`;
-  - `config.toml` / `.env` и их примеры;
-  - `go.work` — workspace с модулем `auth-service`.
+  - `UserRepository`: SaveUser, UserByEmail, IsAdmin; константа `ErrUserNotFound`;
+  - `SessionRepository`: AppByID, CreateSession, RevokeByRefreshToken, SessionByRefreshToken.
 
-### gRPC контракт (`auth-service/proto/auth/v1/auth.proto`)
+- **`auth-service/internal/infrastructure/sqlstore`** — реализация под PostgreSQL:
+  - `NewDB(databaseURL)` — открытие и ping;
+  - `UserRepository`: заглушки SaveUser, UserByEmail, IsAdmin (без реального SQL);
+  - `SessionRepository`: только `SessionByID`; методов CreateSession, RevokeByRefreshToken, SessionByRefreshToken в sqlstore нет — интерфейс из `repository` не реализован до конца. Нужно дописать методы под миграции (users, sessions).
 
-- **Service `AuthService`**:
-  - `Register(RegisterRequest) -> RegisterResponse` — регистрация пользователя по email/паролю, на выходе `user_id`;
-  - `Login(LoginRequest) -> LoginResponse` — логин по email/паролю + `app_id`, возвращает `access_token`, `refresh_token` и сроки жизни через `google.protobuf.Timestamp`;
-  - `IsAdmin(IsAdminRequest) -> IsAdminResponse` — проверка, является ли пользователь админом по `user_id`;
-  - `Logout(LogoutRequest) -> LogoutResponse` — логаут по `refresh_token` (гасим конкретную сессию);
-  - `RefreshToken(RefreshTokenRequest) -> RefreshTokenResponse` — по `refresh_token` выдаёт новую пару токенов и обновлённые TTL.
+- **`auth-service/provider`** — интерфейс `TokenProvider`:
+  - CreateAccessToken(userID, sessionID, appID, exp) → access JWT;
+  - CreateRefreshToken() → непрозрачная строка для refresh.
+  - Реализации в репозитории нет — её нужно добавить (например, в `provider/jwt` или в infrastructure), и передавать в usecase при сборке в main.
 
-### Модель токенов (задумка)
+- **`auth-service/internal/grpc/auth`** — gRPC-слой:
+  - интерфейс `Auth` с методами Register, Login, IsAdmin, Logout, RefreshToken (контракт usecase);
+  - `serverAPI` вызывает usecase, маппит ответы в proto; все ошибки от usecase пока отдаются как `codes.Internal` — имеет смысл различать InvalidCredentials / InvalidRefreshToken → Unauthenticated.
 
-- **Access‑токен**:
-  - формат: JWT;
-  - срок жизни: ~15 минут;
-  - хранение: **не храним в БД**, валидируем по подписи, сроку действия и, при необходимости, по `session_id` в payload.
-- **Refresh‑токен**:
-  - формат: JWT или случайная строка (решение можно зафиксировать позже);
-  - срок жизни: ~7 дней;
-  - хранение: в таблице `sessions` вместе с `user_id`, `app_id`, `refresh_expires_at`, `status`.
-- **Логаут**:
-  - по `refresh_token` находим сессию в БД и помечаем её невалидной/удаляем;
-  - новые access‑токены больше не выдаём, старые доживают до своего TTL.
+- **`auth-service/internal/config`** — конфиг и логгер:
+  - Config: DatabaseURL, BindAddr, AccessTokenTTL, RefreshTokenTTL (строки), LogLevel;
+  - в toml поле задано как `access_token_tll` (опечатка: лучше `access_token_ttl`);
+  - NewLogger — JSON slog по уровню из конфига.
 
-### Как запустить (черновик себе)
+- **`auth-service/migrations`** — миграции PostgreSQL (golang-migrate):
+  - таблицы `users` (id, email, password_hash, is_admin, created_at, updated_at), `sessions` (id, user_id, app_id, refresh_token, refresh_expires_at, status, created_at, updated_at);
+  - индексы по email, refresh_token, (user_id, app_id, status).
 
-1. **Поднять PostgreSQL** (локально или через Docker).
-2. **Прописать строку подключения** в `config.toml`:
-   - поле `database_url` должно совпадать с DSN для `github.com/lib/pq`;
-   - там же задать `bind_addr`, TTL токенов и `log_level`.
-3. **Прогнать миграции** (утилита `migrate` должна быть установлена):
-   - команда: `make migrate-up` (нужен `DB_DSN` в окружении).
-4. **Собрать бинарь**:
-   - команда: `make build-auth` (собирает `./auth-service/cmd/auth-service`).
-5. **Запустить сервис**:
-   - команда: `make start-auth` (ожидает `./auth-service.exe` в корне и `config.toml` рядом).
+- **`auth-service/proto/auth/v1`** — gRPC-контракт и сгенерированный код.
 
-### Статус по бизнес‑логике
+- **Корень репо:** Makefile (build-auth, start-auth, lint-auth, migrate-up, gen-auth, tidy-auth, gofmt), config.toml / .env, go.work.
 
-На данный момент:
+---
 
-- протобуф‑контракт и миграции готовы;
-- доменные модели и интерфейсы репозиториев определены;
-- gRPC‑сервер поднимается, но RPC‑методы не реализованы (везде `panic`);
-- репозитории в `sqlstore` — заглушки без SQL;
-- usecase‑слой для auth ещё не написан и не провязан с gRPC‑хендлерами;
-- JWT и работа с токенами не реализованы.
+### gRPC-контракт (auth-service/proto/auth/v1)
 
-### План себе по реализации
+- **AuthService:** Register, Login (access + refresh + expires), IsAdmin, Logout (по refresh_token), RefreshToken (новая пара токенов с ротацией refresh).
 
-1. **Дописать usecase‑слой** (`internal/usecase/auth.go`):
-   - сценарии: `Register`, `Login`, `IsAdmin`, `Logout`, `RefreshToken`;
-   - продумать контракт usecase vs grpc‑слой (DTO → domain → DTO).
-2. **Реализовать репозитории** в `sqlstore`:
-   - `SaveUser`, `UserByEmail`, `IsAdmin` по схеме `users`;
-   - операции сессий по `refresh_token`, `user_id`, `app_id`, `status`.
-3. **Пробросить зависимости в `internal/app`**:
-   - `NewDB` → репозитории → usecase → gRPC‑handler (в `serverAPI` держать интерфейс usecase).
-4. **JWT и безопасность**:
-   - добавить библиотеку для JWT;
-   - зафиксировать формат payload (user_id, session_id, is_admin, exp и т.п.);
-   - реализовать генерацию и валидацию токенов.
-5. **Тесты**:
-   - написать unit‑тесты на usecase (через `testify` и мок‑репозитории);
-   - по желанию добавить интеграционные тесты с тестовой БД.
+---
 
-Эту README можно расширять по мере появления докера, метрик, логирования запросов, трейсинга и т.д.
+### Модель токенов (текущая реализация)
+
+- **Access:** JWT, короткий TTL; в payload — user_id, session_id, app_id, exp. Не хранится в БД; для мгновенного логаута при проверке доступа нужно дополнительно проверять, что сессия в БД активна (status = 'active').
+- **Refresh:** непрозрачная строка (crypto/rand + base64), хранится в `sessions.refresh_token`, TTL в конфиге. При RefreshToken — ротация: старый отзывается, создаётся новая сессия с новым refresh.
+- **Logout:** по refresh_token сессия помечается revoked; доступ по соответствующему access прекращается при проверке сессии в БД.
+
+---
+
+### Как запустить
+
+1. Поднять PostgreSQL, прописать `database_url` в config.toml (формат DSN для lib/pq).
+2. В config.toml задать `bind_addr`, `access_token_tll`, `refresh_token_ttl` (например "15m", "168h"), `log_level`.
+3. Выполнить миграции: `make migrate-up` (нужен DB_DSN в окружении, если так заложено в Makefile).
+4. Собрать: `make build-auth`.
+5. Запустить: `make start-auth` (бинарь и config.toml в ожидаемых путях по Makefile).
+
+**Сейчас main не собирает репозитории, провайдер токенов и конфиг usecase** — для реального запуска нужно в main (или в app, если решишь собирать граф там) создать DB, репозитории, TokenProvider, распарсить TTL и секрет, вызвать `usecase.NewAuthUseCase(...)` и передать в `app.New`.
+
+---
+
+### Статус и что доделать
+
+- **Сделано:** домен, интерфейсы репозиториев и TokenProvider, полный usecase (Register, Login, IsAdmin, Logout, RefreshToken с ротацией), gRPC-хендлеры, миграции, конфиг и логгер. Архитектура слоёв выдержана: usecase не зависит от grpc и sqlstore.
+- **Не доделано:**  
+  - main не собирает зависимости (пустой AuthUseCase);  
+  - sqlstore — заглушки, нет реального SQL и нет реализации CreateSession, RevokeByRefreshToken, SessionByRefreshToken в SessionRepository;  
+  - нет реализации TokenProvider (JWT + refresh string);  
+  - в usecase остался импорт `google.golang.org/grpc/status/codes` — один раз возвращается status.Error (Login при ошибке не ErrUserNotFound); usecase лучше возвращать только обычные error;  
+  - в gRPC-хендлерах все ошибки → Internal; добавить маппинг ErrInvalidCredentials / ErrInvalidRefreshToken в Unauthenticated;  
+  - тесты на usecase (моки репозиториев) отсутствуют.
+
+---

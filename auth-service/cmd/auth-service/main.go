@@ -5,6 +5,7 @@ import (
 	"auth/internal/app"
 	"auth/internal/config"
 	"auth/internal/infrastructure/sqlstore"
+	"auth/internal/usecase"
 	"flag"
 	"log"
 
@@ -36,7 +37,9 @@ func main() {
 
 	logger := config.NewLogger(cfg)
 
-	application := app.New(logger, cfg.BindAddr)
+	auth := usecase.AuthUseCase{}
+
+	application := app.New(logger, cfg.BindAddr, &auth)
 
 	application.GRPCServer.MustRun()
 

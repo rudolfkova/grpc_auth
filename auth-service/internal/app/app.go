@@ -3,6 +3,7 @@ package app
 
 import (
 	grpcapp "auth/internal/app/grpc"
+	"auth/internal/usecase"
 	"log/slog"
 )
 
@@ -12,12 +13,12 @@ type App struct {
 }
 
 // New ...
-func New(log *slog.Logger, port string) *App {
+func New(log *slog.Logger, port string, auth *usecase.AuthUseCase) *App {
 	// TODO: инициализация хранилища
 
 	// TODO: init auth service (auth)
 
-	gRPCApp := grpcapp.New(log, port)
+	gRPCApp := grpcapp.New(log, port, auth)
 	return &App{
 		GRPCServer: gRPCApp,
 	}

@@ -20,8 +20,8 @@ func NewSessionRepository(db *sql.DB) *SessionRepository {
 }
 
 // SessionByID ...
-func (r *SessionRepository) SessionByID(ctx context.Context, id int) (domain.Session, error) {
+func (r *SessionRepository) SessionByID(ctx context.Context, id int) (domain.App, error) {
 	_ = ctx
 	_ = id
-	return domain.Session{}, nil
+	return domain.App{}, nil
 }

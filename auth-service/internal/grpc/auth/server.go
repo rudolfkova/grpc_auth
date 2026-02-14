@@ -14,9 +14,9 @@ import (
 
 // Auth ...
 type Auth interface {
-	Register(ctx context.Context, email string, password string) (userID int64, err error)
-	Login(ctx context.Context, email string, password string, appID int32) (token domain.Token, err error)
-	IsAdmin(ctx context.Context, userID int64) (isAdmin bool, err error)
+	Register(ctx context.Context, email string, password string) (userID int, err error)
+	Login(ctx context.Context, email string, password string, appID int) (token domain.Token, err error)
+	IsAdmin(ctx context.Context, userID int) (isAdmin bool, err error)
 	Logout(ctx context.Context, refreshToken string) (success bool, err error)
 	RefreshToken(ctx context.Context, refreshToken string) (token domain.Token, err error)
 }
@@ -27,8 +27,8 @@ type serverAPI struct {
 }
 
 // Register ...
-func Register(gRPCServer *grpc.Server) {
-	authv1.RegisterAuthServiceServer(gRPCServer, &serverAPI{})
+func Register(gRPCServer *grpc.Server, auth Auth) {
+	authv1.RegisterAuthServiceServer(gRPCServer, &serverAPI{auth: auth})
 }
 
 // Ниже бизнес логика сервиса, rpc методы.
@@ -41,13 +41,13 @@ func (s *serverAPI) Register(ctx context.Context, req *authv1.RegisterRequest) (
 	}
 
 	return &authv1.RegisterResponse{
-		UserId: userID,
+		UserId: int64(userID),
 	}, nil
 }
 
 // Login ...
 func (s *serverAPI) Login(ctx context.Context, req *authv1.LoginRequest) (*authv1.LoginResponse, error) {
-	token, err := s.auth.Login(ctx, req.GetEmail(), req.GetPassword(), req.GetAppId())
+	token, err := s.auth.Login(ctx, req.GetEmail(), req.GetPassword(), int(req.GetAppId()))
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
 	}
@@ -62,7 +62,7 @@ func (s *serverAPI) Login(ctx context.Context, req *authv1.LoginRequest) (*authv
 
 // IsAdmin ...
 func (s *serverAPI) IsAdmin(ctx context.Context, req *authv1.IsAdminRequest) (*authv1.IsAdminResponse, error) {
-	isAdmin, err := s.auth.IsAdmin(ctx, req.GetUserId())
+	isAdmin, err := s.auth.IsAdmin(ctx, int(req.GetUserId()))
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
 	}
