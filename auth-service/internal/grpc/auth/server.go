@@ -49,7 +49,7 @@ func (s *serverAPI) Register(ctx context.Context, req *authv1.RegisterRequest) (
 func (s *serverAPI) Login(ctx context.Context, req *authv1.LoginRequest) (*authv1.LoginResponse, error) {
 	token, err := s.auth.Login(ctx, req.GetEmail(), req.GetPassword(), int(req.GetAppId()))
 	if err != nil {
-		return nil, status.Error(codes.Internal, "internal error")
+		return &authv1.LoginResponse{}, status.Error(codes.Internal, "internal error")
 	}
 
 	return &authv1.LoginResponse{
@@ -88,7 +88,7 @@ func (s *serverAPI) Logout(ctx context.Context, req *authv1.LogoutRequest) (*aut
 func (s *serverAPI) RefreshToken(ctx context.Context, req *authv1.RefreshTokenRequest) (*authv1.RefreshTokenResponse, error) {
 	token, err := s.auth.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "internal error")
+		return &authv1.RefreshTokenResponse{}, status.Error(codes.Internal, "internal error")
 	}
 
 	return &authv1.RefreshTokenResponse{
