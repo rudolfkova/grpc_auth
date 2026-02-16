@@ -5,6 +5,7 @@ import (
 	"auth/internal/domain"
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 // UserRepository ...
@@ -21,23 +22,31 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 
 // SaveUser ...
 func (r *UserRepository) SaveUser(ctx context.Context, email string, passHash []byte) error {
+	const op = "UserRepository.SaveUser"
+
 	_ = ctx
 	_ = email
 	_ = passHash
 
-	return nil
+	return fmt.Errorf("not implimented %s", op)
 }
 
 // UserByEmail ...
 func (r *UserRepository) UserByEmail(ctx context.Context, email string) (domain.User, error) {
+	const op = "UserRepository.UserByEmail"
+
 	_ = ctx
 	_ = email
-	return domain.User{}, nil
+
+	return domain.User{}, fmt.Errorf("not implimented %s", op)
 }
 
 // IsAdmin ...
 func (r *UserRepository) IsAdmin(ctx context.Context, userID int) (bool, error) {
+	const op = "UserRepository.IsAdmin"
+
 	_ = ctx
 	_ = userID
-	return false, nil
+
+	return false, fmt.Errorf("not implimented %s", op)
 }

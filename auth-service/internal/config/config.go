@@ -1,13 +1,16 @@
 // Package config ...
 package config
 
+import "time"
+
 // Config ...
 type Config struct {
-	DatabaseURL     string `toml:"database_url"`
-	BindAddr        string `toml:"bind_addr"`
-	AccessTokenTTL  string `toml:"access_token_tll"`
-	RefreshTokenTTL string `toml:"refresh_token_ttl"`
-	LogLevel        string `toml:"log_level"`
+	DatabaseURL     string        `toml:"database_url"`
+	BindAddr        string        `toml:"bind_addr"`
+	AccessTokenTTL  time.Duration `toml:"access_token_tll"`
+	RefreshTokenTTL time.Duration `toml:"refresh_token_ttl"`
+	LogLevel        string        `toml:"log_level"`
+	JWTSecret       string        `toml:"jwt_secret"`
 }
 
 // NewConfig ...

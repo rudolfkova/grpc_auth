@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -37,8 +35,6 @@ type AuthUseCase struct {
 
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
-
-	JWTSecret []byte
 }
 
 // NewAuthUseCase ...
@@ -48,8 +44,7 @@ func NewAuthUseCase(
 	token provider.TokenProvider,
 	logger slog.Logger,
 	accessTokenTTL time.Duration,
-	refreshTokenTTL time.Duration,
-	jwtSecret []byte) *AuthUseCase {
+	refreshTokenTTL time.Duration) *AuthUseCase {
 	return &AuthUseCase{
 		Users:           users,
 		Sessions:        sessions,
@@ -57,7 +52,6 @@ func NewAuthUseCase(
 		Logger:          logger,
 		AccessTokenTTL:  accessTokenTTL,
 		RefreshTokenTTL: refreshTokenTTL,
-		JWTSecret:       jwtSecret,
 	}
 }
 
@@ -94,7 +88,7 @@ func (a *AuthUseCase) Login(ctx context.Context, email string, password string, 
 			return domain.Token{}, fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
 		}
 
-		return domain.Token{}, status.Error(codes.Internal, "internal error")
+		return domain.Token{}, fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
 	}
 
 	if err := bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)); err != nil {
