@@ -29,3 +29,7 @@ tidy-auth:
 .PHONY: gofmt
 gofmt:
 	gofmt -w -s .
+
+.PHONY: test
+test-auth:
+	cd auth-service && go test -v -race -timeout 30s ./...

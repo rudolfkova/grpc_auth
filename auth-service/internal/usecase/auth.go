@@ -57,13 +57,20 @@ func NewAuthUseCase(
 
 // Register ...
 func (a *AuthUseCase) Register(ctx context.Context, email string, password string) (userID int, err error) {
-	if err := a.Users.SaveUser(ctx, email, []byte(password)); err != nil {
-		return emptyID, err
+	const op = "Auth.Register"
+
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return emptyID, fmt.Errorf("%s: %w", op, err)
+	}
+
+	if err := a.Users.SaveUser(ctx, email, passHash); err != nil {
+		return emptyID, fmt.Errorf("%s: %w", op, err)
 	}
 
 	user, err := a.Users.UserByEmail(ctx, email)
 	if err != nil {
-		return emptyID, err
+		return emptyID, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return user.ID, nil
@@ -88,7 +95,7 @@ func (a *AuthUseCase) Login(ctx context.Context, email string, password string, 
 			return domain.Token{}, fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
 		}
 
-		return domain.Token{}, fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
+		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)); err != nil {
