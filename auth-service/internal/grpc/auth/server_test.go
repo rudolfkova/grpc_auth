@@ -120,8 +120,6 @@ func TestGRPCAuth_LoginInternalError(t *testing.T) {
 		auth: auth,
 	}
 
-	respToken := &authv1.LoginResponse{}
-
 	auth.
 		On("Login", ctx, req.GetEmail(), req.GetPassword(), int(req.GetAppId())).
 		Return(domain.Token{}, errFailed)
@@ -129,10 +127,7 @@ func TestGRPCAuth_LoginInternalError(t *testing.T) {
 	resp, err := server.Login(ctx, req)
 
 	require.ErrorIs(t, err, internalError)
-	assert.Equal(t, "", resp.GetAccessToken())
-	assert.Equal(t, "", resp.GetRefreshToken())
-	assert.Equal(t, respToken.AccessExpiresAt, resp.GetAccessExpiresAt())
-	assert.Equal(t, respToken.RefreshExpiresAt, resp.GetRefreshExpiresAt())
+	assert.Nil(t, resp)
 
 	auth.AssertExpectations(t)
 }
@@ -320,8 +315,6 @@ func TestGRPCAuth_RefreshTokenInternalError(t *testing.T) {
 		auth: auth,
 	}
 
-	respToken := &authv1.LoginResponse{}
-
 	auth.
 		On("RefreshToken", ctx, req.GetRefreshToken()).
 		Return(domain.Token{}, errFailed)
@@ -329,10 +322,7 @@ func TestGRPCAuth_RefreshTokenInternalError(t *testing.T) {
 	resp, err := server.RefreshToken(ctx, req)
 
 	require.ErrorIs(t, err, internalError)
-	assert.Equal(t, "", resp.GetAccessToken())
-	assert.Equal(t, "", resp.GetRefreshToken())
-	assert.Equal(t, respToken.AccessExpiresAt, resp.GetAccessExpiresAt())
-	assert.Equal(t, respToken.RefreshExpiresAt, resp.GetRefreshExpiresAt())
+	assert.Nil(t, resp)
 
 	auth.AssertExpectations(t)
 }

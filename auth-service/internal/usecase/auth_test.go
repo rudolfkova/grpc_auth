@@ -728,7 +728,7 @@ func TestAuthUseCase_RefreshToken_Success(t *testing.T) {
 		appID:        1,
 	}
 
-	session := domain.App{
+	session := domain.Session{
 		ID:               100,
 		UserID:           42,
 		AppID:            user1.appID,
@@ -792,7 +792,7 @@ func TestAuthUseCase_RefreshToken_SessionByRefreshTokenError(t *testing.T) {
 
 	sessRepo.
 		On("SessionByRefreshToken", user1.ctx, user1.refreshToken).
-		Return(domain.App{}, errFailed)
+		Return(domain.Session{}, errFailed)
 
 	tok, err := uc.RefreshToken(user1.ctx, user1.refreshToken)
 
@@ -829,7 +829,7 @@ func TestAuthUseCase_RefreshToken_InvalidStatus(t *testing.T) {
 		appID:        1,
 	}
 
-	session := domain.App{
+	session := domain.Session{
 		ID:               100,
 		UserID:           42,
 		AppID:            user1.appID,
@@ -876,7 +876,7 @@ func TestAuthUseCase_RefreshToken_Expired(t *testing.T) {
 		appID:        1,
 	}
 
-	session := domain.App{
+	session := domain.Session{
 		ID:               100,
 		UserID:           42,
 		AppID:            user1.appID,
@@ -924,7 +924,7 @@ func TestAuthUseCase_RefreshToken_CreateRefreshTokenError(t *testing.T) {
 		appID:        1,
 	}
 
-	session := domain.App{
+	session := domain.Session{
 		ID:               100,
 		UserID:           42,
 		AppID:            user1.appID,
@@ -982,7 +982,7 @@ func TestAuthUseCase_RefreshToken_CreateSessionError(t *testing.T) {
 		appID:        1,
 	}
 
-	session := domain.App{
+	session := domain.Session{
 		ID:               100,
 		UserID:           42,
 		AppID:            user1.appID,
@@ -1043,7 +1043,7 @@ func TestAuthUseCase_RefreshToken_CreateAccessTokenError(t *testing.T) {
 		appID:        1,
 	}
 
-	session := domain.App{
+	session := domain.Session{
 		ID:               100,
 		UserID:           42,
 		AppID:            user1.appID,

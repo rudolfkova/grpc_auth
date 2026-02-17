@@ -17,22 +17,22 @@ type SessionRepository struct {
 }
 
 // AppByID provides a mock function with given fields: ctx, id
-func (_m *SessionRepository) AppByID(ctx context.Context, id int) (domain.App, error) {
+func (_m *SessionRepository) AppByID(ctx context.Context, id int) (domain.Session, error) {
 	ret := _m.Called(ctx, id)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AppByID")
 	}
 
-	var r0 domain.App
+	var r0 domain.Session
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int) (domain.App, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int) (domain.Session, error)); ok {
 		return rf(ctx, id)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int) domain.App); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int) domain.Session); ok {
 		r0 = rf(ctx, id)
 	} else {
-		r0 = ret.Get(0).(domain.App)
+		r0 = ret.Get(0).(domain.Session)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
@@ -101,22 +101,22 @@ func (_m *SessionRepository) RevokeByRefreshToken(ctx context.Context, refreshTo
 }
 
 // SessionByRefreshToken provides a mock function with given fields: ctx, refreshToken
-func (_m *SessionRepository) SessionByRefreshToken(ctx context.Context, refreshToken string) (domain.App, error) {
+func (_m *SessionRepository) SessionByRefreshToken(ctx context.Context, refreshToken string) (domain.Session, error) {
 	ret := _m.Called(ctx, refreshToken)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SessionByRefreshToken")
 	}
 
-	var r0 domain.App
+	var r0 domain.Session
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (domain.App, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (domain.Session, error)); ok {
 		return rf(ctx, refreshToken)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) domain.App); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) domain.Session); ok {
 		r0 = rf(ctx, refreshToken)
 	} else {
-		r0 = ret.Get(0).(domain.App)
+		r0 = ret.Get(0).(domain.Session)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {

@@ -28,7 +28,7 @@ func (r *UserRepository) SaveUser(ctx context.Context, email string, passHash []
 	_ = email
 	_ = passHash
 
-	return fmt.Errorf("not implimented %s", op)
+	return fmt.Errorf("not implemented %s", op)
 }
 
 // UserByEmail ...
@@ -38,7 +38,7 @@ func (r *UserRepository) UserByEmail(ctx context.Context, email string) (domain.
 	_ = ctx
 	_ = email
 
-	return domain.User{}, fmt.Errorf("not implimented %s", op)
+	return domain.User{}, fmt.Errorf("not implemented %s", op)
 }
 
 // IsAdmin ...
@@ -48,5 +48,5 @@ func (r *UserRepository) IsAdmin(ctx context.Context, userID int) (bool, error) 
 	_ = ctx
 	_ = userID
 
-	return false, fmt.Errorf("not implimented %s", op)
+	return false, fmt.Errorf("not implemented %s", op)
 }

@@ -26,13 +26,13 @@ func NewSessionRepository(db *sql.DB) *SessionRepository {
 }
 
 // AppByID ...
-func (r *SessionRepository) AppByID(ctx context.Context, id int) (domain.App, error) {
+func (r *SessionRepository) AppByID(ctx context.Context, id int) (domain.Session, error) {
 	const op = "SessionRepository.AppByID"
 
 	_ = ctx
 	_ = id
 
-	return domain.App{}, fmt.Errorf("not implimented %s", op)
+	return domain.Session{}, fmt.Errorf("not implemented %s", op)
 }
 
 // CreateSession ...
@@ -45,25 +45,25 @@ func (r *SessionRepository) CreateSession(ctx context.Context, userID int, appID
 	_ = refreshToken
 	_ = refExpiresAt
 
-	return emptyID, fmt.Errorf("not implimented %s", op)
+	return emptyID, fmt.Errorf("not implemented %s", op)
 }
 
 // RevokeByRefreshToken ...
-func (r *SessionRepository) RevokeByRefreshToken(ctx context.Context, refreshToken string) (revoked bool, err error){
+func (r *SessionRepository) RevokeByRefreshToken(ctx context.Context, refreshToken string) (revoked bool, err error) {
 	const op = "SessionRepository.RevokeByRefreshToken"
-	
+
 	_ = ctx
 	_ = refreshToken
 
-	return false, fmt.Errorf("not implimented %s", op)
+	return false, fmt.Errorf("not implemented %s", op)
 }
 
 // SessionByRefreshToken ...
-func (r *SessionRepository) SessionByRefreshToken(ctx context.Context, refreshToken string) (session domain.App, err error){
+func (r *SessionRepository) SessionByRefreshToken(ctx context.Context, refreshToken string) (session domain.Session, err error) {
 	const op = "SessionRepository.SessionByRefreshToken"
 
 	_ = ctx
 	_ = refreshToken
 
-	return domain.App{}, fmt.Errorf("not implimented %s", op)
+	return domain.Session{}, fmt.Errorf("not implemented %s", op)
 }

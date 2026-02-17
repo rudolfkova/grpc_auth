@@ -3,8 +3,8 @@ package domain
 
 import "time"
 
-// App ...
-type App struct {
+// Session ...
+type Session struct {
 	ID               int
 	UserID           int
 	AppID            int
