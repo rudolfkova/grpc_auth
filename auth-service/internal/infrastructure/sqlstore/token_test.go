@@ -3,7 +3,6 @@ package sqlstore_test
 
 import (
 	"auth/internal/infrastructure/sqlstore"
-	"fmt"
 	"testing"
 	"time"
 
@@ -56,7 +55,6 @@ func TestCreateAccessToken_Success(t *testing.T) {
 	appid, ok := claims["app_id"].(float64)
 	require.True(t, ok)
 
-	fmt.Printf("accExp: %s, exp: %s", user.accExp, time.Unix(int64(exp), 0))
 	require.Greater(t, int64(exp), time.Now().Unix())
 	assert.Equal(t, float64(user.userID), userid)
 	assert.Equal(t, float64(user.sessionID), sessionid)

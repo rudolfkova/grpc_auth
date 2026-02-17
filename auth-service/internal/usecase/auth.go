@@ -18,13 +18,6 @@ const (
 	emptyID = 0
 )
 
-var (
-	// ErrInvalidCredentials ...
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	// ErrInvalidRefreshToken ...
-	ErrInvalidRefreshToken = errors.New("invalid refresh token")
-)
-
 // AuthUseCase ...
 type AuthUseCase struct {
 	Users    repository.UserRepository
@@ -59,6 +52,13 @@ func NewAuthUseCase(
 func (a *AuthUseCase) Register(ctx context.Context, email string, password string) (userID int, err error) {
 	const op = "Auth.Register"
 
+	log := a.Logger.With(
+		slog.String("op", op),
+		slog.String("username", email),
+	)
+
+	log.Info("register user")
+
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return emptyID, fmt.Errorf("%s: %w", op, err)
@@ -92,7 +92,7 @@ func (a *AuthUseCase) Login(ctx context.Context, email string, password string, 
 		if errors.Is(err, repository.ErrUserNotFound) {
 			a.Logger.Warn("user not found")
 
-			return domain.Token{}, fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
+			return domain.Token{}, fmt.Errorf("%s: %w", op, repository.ErrInvalidCredentials)
 		}
 
 		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
@@ -101,7 +101,7 @@ func (a *AuthUseCase) Login(ctx context.Context, email string, password string, 
 	if err := bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)); err != nil {
 		a.Logger.Info("invalid credentials")
 
-		return domain.Token{}, fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
+		return domain.Token{}, fmt.Errorf("%s: %w", op, repository.ErrInvalidCredentials)
 	}
 
 	refreshToken, err := a.Token.CreateRefreshToken()
@@ -136,6 +136,13 @@ func (a *AuthUseCase) Login(ctx context.Context, email string, password string, 
 func (a *AuthUseCase) IsAdmin(ctx context.Context, userID int) (bool, error) {
 	const op = "Auth.IsAdmin"
 
+	log := a.Logger.With(
+		slog.String("op", op),
+		slog.String("userID", fmt.Sprint(userID)),
+	)
+
+	log.Info("check permisions")
+
 	isAdmin, err := a.Users.IsAdmin(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("%s: %w", op, err)
@@ -147,6 +154,12 @@ func (a *AuthUseCase) IsAdmin(ctx context.Context, userID int) (bool, error) {
 // Logout ...
 func (a *AuthUseCase) Logout(ctx context.Context, refreshToken string) (success bool, err error) {
 	const op = "Auth.Logout"
+
+	log := a.Logger.With(
+		slog.String("op", op),
+	)
+
+	log.Info("logout user by refreshToken")
 
 	ok, err := a.Sessions.RevokeByRefreshToken(ctx, refreshToken)
 	if err != nil {
@@ -160,13 +173,19 @@ func (a *AuthUseCase) Logout(ctx context.Context, refreshToken string) (success 
 func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (token domain.Token, err error) {
 	const op = "Auth.RefreshToken"
 
+	log := a.Logger.With(
+		slog.String("op", op),
+	)
+
+	log.Info("refresh token by refreshToken")
+
 	session, err := a.Sessions.SessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
 		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	if session.Status != "active" || time.Now().After(session.RefreshExpiresAt) {
-		return domain.Token{}, fmt.Errorf("%s: %w", op, ErrInvalidRefreshToken)
+		return domain.Token{}, fmt.Errorf("%s: %w", op, provider.ErrInvalidRefreshToken)
 	}
 
 	_, _ = a.Sessions.RevokeByRefreshToken(ctx, refreshToken)

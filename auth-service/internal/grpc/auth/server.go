@@ -3,14 +3,19 @@ package grpcauth
 
 import (
 	"auth/internal/domain"
+	"auth/internal/repository"
 	authv1 "auth/proto/auth/v1"
+	"auth/provider"
 	"context"
+	"errors"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+var ()
 
 // Auth ...
 type Auth interface {
@@ -36,8 +41,14 @@ func Register(gRPCServer *grpc.Server, auth Auth) {
 // Register ...
 func (s *serverAPI) Register(ctx context.Context, req *authv1.RegisterRequest) (*authv1.RegisterResponse, error) {
 	userID, err := s.auth.Register(ctx, req.GetEmail(), req.GetPassword())
-	
+
 	if err != nil {
+		if errors.Is(err, repository.ErrUserAlreadyExists) {
+			return nil, status.Error(codes.AlreadyExists, "user with this email already exists")
+		}
+		if errors.Is(err, repository.ErrInvalidCredentials) {
+			return nil, status.Error(codes.Unauthenticated, "invalid user")
+		}
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 
@@ -50,6 +61,9 @@ func (s *serverAPI) Register(ctx context.Context, req *authv1.RegisterRequest) (
 func (s *serverAPI) Login(ctx context.Context, req *authv1.LoginRequest) (*authv1.LoginResponse, error) {
 	token, err := s.auth.Login(ctx, req.GetEmail(), req.GetPassword(), int(req.GetAppId()))
 	if err != nil {
+		if errors.Is(err, repository.ErrInvalidCredentials) {
+			return nil, status.Error(codes.Unauthenticated, "wrong email or password")
+		}
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 
@@ -65,6 +79,9 @@ func (s *serverAPI) Login(ctx context.Context, req *authv1.LoginRequest) (*authv
 func (s *serverAPI) IsAdmin(ctx context.Context, req *authv1.IsAdminRequest) (*authv1.IsAdminResponse, error) {
 	isAdmin, err := s.auth.IsAdmin(ctx, int(req.GetUserId()))
 	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return nil, status.Error(codes.NotFound, "user not found")
+		}
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 
@@ -77,6 +94,9 @@ func (s *serverAPI) IsAdmin(ctx context.Context, req *authv1.IsAdminRequest) (*a
 func (s *serverAPI) Logout(ctx context.Context, req *authv1.LogoutRequest) (*authv1.LogoutResponse, error) {
 	success, err := s.auth.Logout(ctx, req.GetRefreshToken())
 	if err != nil {
+		if errors.Is(err, repository.ErrInvalidCredentials) {
+			return nil, status.Error(codes.Unauthenticated, "invalid user")
+		}
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 
@@ -89,6 +109,12 @@ func (s *serverAPI) Logout(ctx context.Context, req *authv1.LogoutRequest) (*aut
 func (s *serverAPI) RefreshToken(ctx context.Context, req *authv1.RefreshTokenRequest) (*authv1.RefreshTokenResponse, error) {
 	token, err := s.auth.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
+		if errors.Is(err, repository.ErrInvalidCredentials) {
+			return nil, status.Error(codes.Unauthenticated, "invalid user")
+		}
+		if errors.Is(err, provider.ErrInvalidRefreshToken) {
+			return nil, status.Error(codes.Unauthenticated, "invalid user")
+		}
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 

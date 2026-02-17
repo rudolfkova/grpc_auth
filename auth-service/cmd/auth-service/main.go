@@ -6,8 +6,13 @@ import (
 	"auth/internal/config"
 	"auth/internal/infrastructure/sqlstore"
 	"auth/internal/usecase"
+	"context"
 	"flag"
 	"log"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/BurntSushi/toml"
 	_ "github.com/lib/pq"
@@ -29,13 +34,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	logger := config.NewLogger(cfg)
 
 	db, err := sqlstore.NewDB(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	logger := config.NewLogger(cfg)
+	defer func() {
+		if err = db.Close(); err != nil {
+			logger.Error("bd closed with error", slog.String("err", err.Error()))
+		}
+	}()
 
 	auth := usecase.NewAuthUseCase(
 		sqlstore.NewUserRepository(db),
@@ -48,6 +57,15 @@ func main() {
 
 	application := app.New(logger, cfg.BindAddr, auth)
 
-	application.GRPCServer.MustRun()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
+	go func() {
+		if err := application.GRPCServer.Run(); err != nil {
+			logger.Error("grpc server stopped with error", slog.String("err", err.Error()))
+		}
+	}()
+
+	<-ctx.Done()
+	application.GRPCServer.Stop()
 }

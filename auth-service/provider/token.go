@@ -1,7 +1,15 @@
 // Package provider ...
 package provider
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var (
+	// ErrInvalidRefreshToken ...
+	ErrInvalidRefreshToken = errors.New("invalid refresh token")
+)
 
 // TokenProvider ...
 type TokenProvider interface {

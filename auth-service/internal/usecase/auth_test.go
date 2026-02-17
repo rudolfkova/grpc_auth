@@ -7,6 +7,7 @@ import (
 	"auth/internal/usecase"
 	providerMocks "auth/mocks/provider"
 	repoMocks "auth/mocks/repository"
+	"auth/provider"
 	"context"
 	"fmt"
 	"testing"
@@ -119,7 +120,7 @@ func TestAuthUseCase_Login_WrongEmail(t *testing.T) {
 
 	tok, err := uc.Login(user1.ctx, user1.email, user1.password, user1.appID)
 
-	require.ErrorIs(t, err, usecase.ErrInvalidCredentials)
+	require.ErrorIs(t, err, repository.ErrInvalidCredentials)
 	assert.Equal(t, "", tok.AccessToken)
 	assert.Equal(t, "", tok.RefreshToken)
 
@@ -157,7 +158,7 @@ func TestAuthUseCase_Login_WrongPassword(t *testing.T) {
 
 	tok, err := uc.Login(user1.ctx, user1.email, user1.password, user1.appID)
 
-	require.ErrorIs(t, err, usecase.ErrInvalidCredentials)
+	require.ErrorIs(t, err, repository.ErrInvalidCredentials)
 	assert.Equal(t, "", tok.AccessToken)
 	assert.Equal(t, "", tok.RefreshToken)
 
@@ -844,7 +845,7 @@ func TestAuthUseCase_RefreshToken_InvalidStatus(t *testing.T) {
 	tok, err := uc.RefreshToken(user1.ctx, user1.refreshToken)
 
 	require.Error(t, err)
-	require.ErrorIs(t, err, usecase.ErrInvalidRefreshToken)
+	require.ErrorIs(t, err, provider.ErrInvalidRefreshToken)
 	assert.Contains(t, err.Error(), op)
 	assert.Equal(t, "", tok.AccessToken)
 	assert.Equal(t, "", tok.RefreshToken)
@@ -891,7 +892,7 @@ func TestAuthUseCase_RefreshToken_Expired(t *testing.T) {
 	tok, err := uc.RefreshToken(user1.ctx, user1.refreshToken)
 
 	require.Error(t, err)
-	require.ErrorIs(t, err, usecase.ErrInvalidRefreshToken)
+	require.ErrorIs(t, err, provider.ErrInvalidRefreshToken)
 	assert.Contains(t, err.Error(), op)
 	assert.Equal(t, "", tok.AccessToken)
 	assert.Equal(t, "", tok.RefreshToken)
