@@ -8,7 +8,7 @@ type Config struct {
 	DatabaseURL     string        `toml:"database_url"`
 	TestDatabaseURL string        `toml:"test_database_url"`
 	BindAddr        string        `toml:"bind_addr"`
-	AccessTokenTTL  time.Duration `toml:"access_token_tll"`
+	AccessTokenTTL  time.Duration `toml:"access_token_ttl"`
 	RefreshTokenTTL time.Duration `toml:"refresh_token_ttl"`
 	LogLevel        string        `toml:"log_level"`
 	JWTSecret       string        `toml:"jwt_secret"`

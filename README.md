@@ -26,7 +26,7 @@
 - **`auth-service/internal/domain`** — доменные модели:
   - `User` (ID, Email, PassHash);
   - `Token` (AccessToken, RefreshToken — строки; AccessExpireAt, RefreshExpireAt — time.Time);
-  - `App` (в domain/session.go) — по смыслу сессия: ID, UserID, AppID, RefreshExpiresAt, Status. Имя типа не совпадает с сутью (сессия), можно переименовать в `Session` для ясности.
+  - `Session` — сессия refresh-токена: ID, UserID, AppID, RefreshExpiresAt, Status.
 
 - **`auth-service/internal/repository`** — интерфейсы хранилищ:
   - `UserRepository`: SaveUser, UserByEmail, IsAdmin; константа `ErrUserNotFound`;
@@ -34,13 +34,14 @@
 
 - **`auth-service/internal/infrastructure/sqlstore`** — реализация под PostgreSQL:
   - `NewDB(databaseURL)` — открытие и ping;
-  - `UserRepository`: заглушки SaveUser, UserByEmail, IsAdmin (без реального SQL);
-  - `SessionRepository`: только `SessionByID`; методов CreateSession, RevokeByRefreshToken, SessionByRefreshToken в sqlstore нет — интерфейс из `repository` не реализован до конца. Нужно дописать методы под миграции (users, sessions).
+  - `UserRepository`: SaveUser, UserByEmail, IsAdmin под таблицу `users`;
+  - `SessionRepository`: SessionByID, CreateSession, RevokeByRefreshToken, SessionByRefreshToken под таблицу `sessions`;
+  - `TokenProvider` (JWT access + random refresh) лежит здесь же (`token.go`).
 
 - **`auth-service/provider`** — интерфейс `TokenProvider`:
   - CreateAccessToken(userID, sessionID, appID, exp) → access JWT;
   - CreateRefreshToken() → непрозрачная строка для refresh.
-  - Реализации в репозитории нет — её нужно добавить (например, в `provider/jwt` или в infrastructure), и передавать в usecase при сборке в main.
+  - Реализация сейчас в `auth-service/internal/infrastructure/sqlstore/token.go`.
 
 - **`auth-service/internal/grpc/auth`** — gRPC-слой:
   - интерфейс `Auth` с методами Register, Login, IsAdmin, Logout, RefreshToken (контракт usecase);
@@ -48,7 +49,7 @@
 
 - **`auth-service/internal/config`** — конфиг и логгер:
   - Config: DatabaseURL, BindAddr, AccessTokenTTL, RefreshTokenTTL (строки), LogLevel;
-  - в toml поле задано как `access_token_tll` (опечатка: лучше `access_token_ttl`);
+  - в `config.toml` используется `access_token_ttl` / `refresh_token_ttl`;
   - NewLogger — JSON slog по уровню из конфига.
 
 - **`auth-service/migrations`** — миграции PostgreSQL (golang-migrate):
@@ -92,10 +93,22 @@
 - **Сделано:** домен, интерфейсы репозиториев и TokenProvider, полный usecase (Register, Login, IsAdmin, Logout, RefreshToken с ротацией), gRPC-хендлеры, миграции, конфиг и логгер. Архитектура слоёв выдержана: usecase не зависит от grpc и sqlstore.
 - **Не доделано:**  
   - main не собирает зависимости (пустой AuthUseCase);  
-  - sqlstore — заглушки, нет реального SQL и нет реализации CreateSession, RevokeByRefreshToken, SessionByRefreshToken в SessionRepository;  
-  - нет реализации TokenProvider (JWT + refresh string);  
+  - маппинг pg-ошибок на доменные (`ErrUserAlreadyExists` и т.п.) можно сделать аккуратнее;  
   - в usecase остался импорт `google.golang.org/grpc/status/codes` — один раз возвращается status.Error (Login при ошибке не ErrUserNotFound); usecase лучше возвращать только обычные error;  
   - в gRPC-хендлерах все ошибки → Internal; добавить маппинг ErrInvalidCredentials / ErrInvalidRefreshToken в Unauthenticated;  
-  - тесты на usecase (моки репозиториев) отсутствуют.
+  - интеграционные тесты usecase есть под билд-тегом `integration` (см. `auth-service/internal/usecase/auth_integration_test.go`); юнит-тесты usecase на моках — в `auth-service/internal/usecase/auth_test.go`.
+
+---
+
+### Интеграционные тесты
+
+- Файл: `auth-service/internal/usecase/auth_integration_test.go`
+- Запуск (из корня репо):
+
+```bash
+go test ./auth-service/internal/usecase -tags=integration
+```
+
+- Используется `test_database_url` из `config.toml`. Перед запуском миграции должны быть применены к этой базе.
 
 ---
