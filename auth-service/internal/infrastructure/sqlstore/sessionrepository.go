@@ -1,10 +1,11 @@
-// Package sqlstore ...
 package sqlstore
 
 import (
 	"auth/internal/domain"
+	"auth/internal/repository"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -20,50 +21,112 @@ type SessionRepository struct {
 
 // NewSessionRepository ...
 func NewSessionRepository(db *sql.DB) *SessionRepository {
-	return &SessionRepository{
-		db: db,
-	}
+	return &SessionRepository{db: db}
 }
 
-// AppByID ...
-func (r *SessionRepository) AppByID(ctx context.Context, id int) (domain.Session, error) {
-	const op = "SessionRepository.AppByID"
+// SessionByID ...
+func (r *SessionRepository) SessionByID(ctx context.Context, id int) (domain.Session, error) {
+	const op = "SessionRepository.SessionByID"
 
-	_ = ctx
-	_ = id
+	q := `SELECT id, user_id, app_id, refresh_expires_at, status
+	      FROM sessions
+	      WHERE id = $1`
 
-	return domain.Session{}, fmt.Errorf("not implemented %s", op)
+	var s domain.Session
+
+	err := r.db.QueryRowContext(ctx, q, id).Scan(
+		&s.ID,
+		&s.UserID,
+		&s.AppID,
+		&s.RefreshExpiresAt,
+		&s.Status,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// отдельной ошибки под "session not found" у тебя пока нет,
+			// можешь завести в package repository по аналогии с пользователем.
+			return domain.Session{}, fmt.Errorf("%s: %w", op, repository.ErrSessionNotFound)
+		}
+
+		return domain.Session{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return s, nil
 }
 
 // CreateSession ...
-func (r *SessionRepository) CreateSession(ctx context.Context, userID int, appID int, refreshToken string, refExpiresAt time.Time) (sessionID int, err error) {
+func (r *SessionRepository) CreateSession(
+	ctx context.Context,
+	userID int,
+	appID int,
+	refreshToken string,
+	refExpiresAt time.Time,
+) (sessionID int, err error) {
 	const op = "SessionRepository.CreateSession"
 
-	_ = ctx
-	_ = userID
-	_ = appID
-	_ = refreshToken
-	_ = refExpiresAt
+	q := `INSERT INTO sessions (user_id, app_id, refresh_token, refresh_expires_at)
+	      VALUES ($1, $2, $3, $4)
+	      RETURNING id`
 
-	return emptyID, fmt.Errorf("not implemented %s", op)
+	err = r.db.QueryRowContext(ctx, q,
+		userID,
+		appID,
+		refreshToken,
+		refExpiresAt,
+	).Scan(&sessionID)
+	if err != nil {
+		return emptyID, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return sessionID, nil
 }
 
 // RevokeByRefreshToken ...
 func (r *SessionRepository) RevokeByRefreshToken(ctx context.Context, refreshToken string) (revoked bool, err error) {
 	const op = "SessionRepository.RevokeByRefreshToken"
 
-	_ = ctx
-	_ = refreshToken
+	q := `UPDATE sessions
+	      SET status = 'revoked', updated_at = now()
+	      WHERE refresh_token = $1 AND status = 'active'`
 
-	return false, fmt.Errorf("not implemented %s", op)
+	res, err := r.db.ExecContext(ctx, q, refreshToken)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", op, err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return rows > 0, nil
 }
 
 // SessionByRefreshToken ...
 func (r *SessionRepository) SessionByRefreshToken(ctx context.Context, refreshToken string) (session domain.Session, err error) {
 	const op = "SessionRepository.SessionByRefreshToken"
 
-	_ = ctx
-	_ = refreshToken
+	q := `SELECT id, user_id, app_id, refresh_expires_at, status
+	      FROM sessions
+	      WHERE refresh_token = $1`
 
-	return domain.Session{}, fmt.Errorf("not implemented %s", op)
+	var s domain.Session
+
+	err = r.db.QueryRowContext(ctx, q, refreshToken).Scan(
+		&s.ID,
+		&s.UserID,
+		&s.AppID,
+		&s.RefreshExpiresAt,
+		&s.Status,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// аналогично, можно вернуть repository.ErrSessionNotFound
+			return domain.Session{}, fmt.Errorf("%s: %w", op, repository.ErrSessionNotFound)
+		}
+
+		return domain.Session{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return s, nil
 }

@@ -73,6 +73,8 @@ func (a *AuthUseCase) Register(ctx context.Context, email string, password strin
 		return emptyID, fmt.Errorf("%s: %w", op, err)
 	}
 
+	log.Info("register success")
+
 	return user.ID, nil
 }
 

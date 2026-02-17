@@ -16,12 +16,12 @@ type SessionRepository struct {
 	mock.Mock
 }
 
-// AppByID provides a mock function with given fields: ctx, id
-func (_m *SessionRepository) AppByID(ctx context.Context, id int) (domain.Session, error) {
+// SessionByID provides a mock function with given fields: ctx, id
+func (_m *SessionRepository) SessionByID(ctx context.Context, id int) (domain.Session, error) {
 	ret := _m.Called(ctx, id)
 
 	if len(ret) == 0 {
-		panic("no return value specified for AppByID")
+		panic("no return value specified for SessionByID")
 	}
 
 	var r0 domain.Session

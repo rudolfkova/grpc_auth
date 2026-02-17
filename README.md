@@ -30,7 +30,7 @@
 
 - **`auth-service/internal/repository`** — интерфейсы хранилищ:
   - `UserRepository`: SaveUser, UserByEmail, IsAdmin; константа `ErrUserNotFound`;
-  - `SessionRepository`: AppByID, CreateSession, RevokeByRefreshToken, SessionByRefreshToken.
+  - `SessionRepository`: SessionByID, CreateSession, RevokeByRefreshToken, SessionByRefreshToken.
 
 - **`auth-service/internal/infrastructure/sqlstore`** — реализация под PostgreSQL:
   - `NewDB(databaseURL)` — открытие и ping;

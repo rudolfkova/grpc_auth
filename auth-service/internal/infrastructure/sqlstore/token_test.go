@@ -23,10 +23,15 @@ var (
 )
 
 type testUser struct {
-	userID    int
-	sessionID int
-	appID     int
-	accExp    time.Time
+	userID          int
+	sessionID       int
+	appID           int
+	accExp          time.Time
+	email           string
+	password        string
+	passHash        []byte
+	refreshToken    string
+	refreshTokenExp time.Time
 }
 
 func TestCreateAccessToken_Success(t *testing.T) {
