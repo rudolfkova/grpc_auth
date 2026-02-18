@@ -171,6 +171,15 @@ func (a *AuthUseCase) Logout(ctx context.Context, refreshToken string) (success 
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
 
+	session, err := a.Sessions.SessionByRefreshToken(ctx, refreshToken)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", op, err)
+	}
+
+	if err := a.Cache.DelSession(ctx, session.ID); err != nil {
+		log.Warn("session not deleted from cache")
+	}
+
 	return ok, nil
 }
 
@@ -194,6 +203,9 @@ func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (to
 	}
 
 	_, _ = a.Sessions.RevokeByRefreshToken(ctx, refreshToken)
+	if err := a.Cache.DelSession(ctx, session.ID); err != nil {
+		log.Warn("session not deleted from cache")
+	}
 
 	newRefreshToken, err := a.Token.CreateRefreshToken()
 	if err != nil {
@@ -222,7 +234,41 @@ func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (to
 
 // ValidateSession ...
 func (a *AuthUseCase) ValidateSession(ctx context.Context, sessionID int) (active bool, err error) {
-	_ = ctx
-	_ = sessionID
+	const op = "Auth.ValidateSession"
+
+	log := a.Logger.With(
+		slog.String("op", op),
+	)
+
+	log.Info("validate session")
+
+	ok, session, err := a.Cache.GetSession(ctx, sessionID)
+	if err != nil {
+		log.Warn("session not get from cache")
+		ok = false
+	}
+
+	if !ok {
+		session, err := a.Sessions.SessionByID(ctx, sessionID)
+		if err != nil {
+			return false, fmt.Errorf("%s: %w", op, err)
+		}
+		if err = a.Cache.SetSession(ctx, sessionID, session); err != nil {
+			log.Warn("session not set in cache")
+		}
+		isActive := session.Status == "active" && time.Now().Before(session.RefreshExpiresAt)
+		if isActive {
+			return true, nil
+		}
+		return false, nil
+
+	}
+
+	isActive := session.Status == "active" && time.Now().Before(session.RefreshExpiresAt)
+
+	if isActive {
+		return true, nil
+	}
 	return false, nil
+
 }

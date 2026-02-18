@@ -1,10 +1,13 @@
 package repository
 
-import "auth/internal/domain"
+import (
+	"auth/internal/domain"
+	"context"
+)
 
 // Cache ...
 type Cache interface {
-	SetSession(keyID int, value domain.Session) error
-	GetSession(keyID int) (value domain.Session, err error)
-	DelSession(keyID int) error
+	SetSession(ctx context.Context, keyID int, value domain.Session) error
+	GetSession(ctx context.Context, keyID int) (ok bool, value domain.Session, err error)
+	DelSession(ctx context.Context, keyID int) error
 }

@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	// ErrSessionNotFound ...
 	ErrSessionNotFound = errors.New("session not found")
 )
 

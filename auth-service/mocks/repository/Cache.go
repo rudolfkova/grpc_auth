@@ -4,6 +4,7 @@ package mocks
 
 import (
 	domain "auth/internal/domain"
+	context "context"
 
 	mock "github.com/stretchr/testify/mock"
 )
@@ -13,17 +14,17 @@ type Cache struct {
 	mock.Mock
 }
 
-// DelSession provides a mock function with given fields: keyID
-func (_m *Cache) DelSession(keyID int) error {
-	ret := _m.Called(keyID)
+// DelSession provides a mock function with given fields: ctx, keyID
+func (_m *Cache) DelSession(ctx context.Context, keyID int) error {
+	ret := _m.Called(ctx, keyID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DelSession")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(int) error); ok {
-		r0 = rf(keyID)
+	if rf, ok := ret.Get(0).(func(context.Context, int) error); ok {
+		r0 = rf(ctx, keyID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -31,45 +32,52 @@ func (_m *Cache) DelSession(keyID int) error {
 	return r0
 }
 
-// GetSession provides a mock function with given fields: keyID
-func (_m *Cache) GetSession(keyID int) (domain.Session, error) {
-	ret := _m.Called(keyID)
+// GetSession provides a mock function with given fields: ctx, keyID
+func (_m *Cache) GetSession(ctx context.Context, keyID int) (bool, domain.Session, error) {
+	ret := _m.Called(ctx, keyID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetSession")
 	}
 
-	var r0 domain.Session
-	var r1 error
-	if rf, ok := ret.Get(0).(func(int) (domain.Session, error)); ok {
-		return rf(keyID)
+	var r0 bool
+	var r1 domain.Session
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, int) (bool, domain.Session, error)); ok {
+		return rf(ctx, keyID)
 	}
-	if rf, ok := ret.Get(0).(func(int) domain.Session); ok {
-		r0 = rf(keyID)
+	if rf, ok := ret.Get(0).(func(context.Context, int) bool); ok {
+		r0 = rf(ctx, keyID)
 	} else {
-		r0 = ret.Get(0).(domain.Session)
+		r0 = ret.Get(0).(bool)
 	}
 
-	if rf, ok := ret.Get(1).(func(int) error); ok {
-		r1 = rf(keyID)
+	if rf, ok := ret.Get(1).(func(context.Context, int) domain.Session); ok {
+		r1 = rf(ctx, keyID)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(domain.Session)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, int) error); ok {
+		r2 = rf(ctx, keyID)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
-// SetSession provides a mock function with given fields: keyID, value
-func (_m *Cache) SetSession(keyID int, value domain.Session) error {
-	ret := _m.Called(keyID, value)
+// SetSession provides a mock function with given fields: ctx, keyID, value
+func (_m *Cache) SetSession(ctx context.Context, keyID int, value domain.Session) error {
+	ret := _m.Called(ctx, keyID, value)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SetSession")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(int, domain.Session) error); ok {
-		r0 = rf(keyID, value)
+	if rf, ok := ret.Get(0).(func(context.Context, int, domain.Session) error); ok {
+		r0 = rf(ctx, keyID, value)
 	} else {
 		r0 = ret.Error(0)
 	}

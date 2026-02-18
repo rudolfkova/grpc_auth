@@ -4,6 +4,7 @@ package rediscache
 import (
 	"auth/internal/config"
 	"auth/internal/domain"
+	"context"
 )
 
 // Store ...
@@ -21,20 +22,23 @@ func (s *Store) Close() error {
 }
 
 // SetSession ...
-func (s *Store) SetSession(keyID int, value domain.Session) error {
+func (s *Store) SetSession(ctx context.Context, keyID int, value domain.Session) error {
+	_ = ctx
 	_ = keyID
 	_ = value
 	return nil
 }
 
 // GetSession ...
-func (s *Store) GetSession(keyID int) (value domain.Session, err error) {
+func (s *Store) GetSession(ctx context.Context, keyID int) (ok bool, value domain.Session, err error) {
+	_ = ctx
 	_ = keyID
-	return domain.Session{}, nil
+	return false, domain.Session{}, nil
 }
 
 // DelSession ...
-func (s *Store) DelSession(keyID int) error {
+func (s *Store) DelSession(ctx context.Context, keyID int) error {
+	_ = ctx
 	_ = keyID
 	return nil
 }
