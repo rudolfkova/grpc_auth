@@ -8,6 +8,7 @@ type Config struct {
 	DatabaseURL     string        `toml:"database_url"`
 	TestDatabaseURL string        `toml:"test_database_url"`
 	RedisAddr       string        `toml:"redis_addr"`
+	TestRedisAddr   string        `toml:"test_redis_addr"`
 	BindAddr        string        `toml:"bind_addr"`
 	AccessTokenTTL  time.Duration `toml:"access_token_ttl"`
 	RefreshTokenTTL time.Duration `toml:"refresh_token_ttl"`

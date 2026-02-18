@@ -652,9 +652,25 @@ func TestAuthUseCase_Logout_SeccessOK(t *testing.T) {
 		refreshToken: "REFRESH",
 	}
 
+	session := domain.Session{
+		ID:               10,
+		UserID:           42,
+		AppID:            1,
+		RefreshExpiresAt: time.Now().Add(time.Hour),
+		Status:           "active",
+	}
+
 	sessRepo.
 		On("RevokeByRefreshToken", user1.ctx, user1.refreshToken).
 		Return(true, nil)
+
+	sessRepo.
+		On("SessionByRefreshToken", user1.ctx, user1.refreshToken).
+		Return(session, nil)
+
+	cacheRepo.
+		On("DelSession", user1.ctx, session.ID).
+		Return(nil)
 
 	ok, err := uc.Logout(user1.ctx, user1.refreshToken)
 
@@ -687,9 +703,25 @@ func TestAuthUseCase_Logout_SeccessFail(t *testing.T) {
 		refreshToken: "REFRESH",
 	}
 
+	session := domain.Session{
+		ID:               10,
+		UserID:           42,
+		AppID:            1,
+		RefreshExpiresAt: time.Now().Add(time.Hour),
+		Status:           "active",
+	}
+
 	sessRepo.
 		On("RevokeByRefreshToken", user1.ctx, user1.refreshToken).
 		Return(false, nil)
+
+	sessRepo.
+		On("SessionByRefreshToken", user1.ctx, user1.refreshToken).
+		Return(session, nil)
+
+	cacheRepo.
+		On("DelSession", user1.ctx, session.ID).
+		Return(nil)
 
 	ok, err := uc.Logout(user1.ctx, user1.refreshToken)
 
@@ -778,6 +810,10 @@ func TestAuthUseCase_RefreshToken_Success(t *testing.T) {
 	sessRepo.
 		On("RevokeByRefreshToken", user1.ctx, user1.refreshToken).
 		Return(true, nil)
+
+	cacheRepo.
+		On("DelSession", user1.ctx, session.ID).
+		Return(nil)
 
 	tokenProv.
 		On("CreateRefreshToken").
@@ -983,6 +1019,10 @@ func TestAuthUseCase_RefreshToken_CreateRefreshTokenError(t *testing.T) {
 		On("RevokeByRefreshToken", user1.ctx, user1.refreshToken).
 		Return(true, nil)
 
+	cacheRepo.
+		On("DelSession", user1.ctx, session.ID).
+		Return(nil)
+
 	tokenProv.
 		On("CreateRefreshToken").
 		Return("", errFailed)
@@ -1042,6 +1082,10 @@ func TestAuthUseCase_RefreshToken_CreateSessionError(t *testing.T) {
 	sessRepo.
 		On("RevokeByRefreshToken", user1.ctx, user1.refreshToken).
 		Return(true, nil)
+
+	cacheRepo.
+		On("DelSession", user1.ctx, session.ID).
+		Return(nil)
 
 	tokenProv.
 		On("CreateRefreshToken").
@@ -1105,6 +1149,10 @@ func TestAuthUseCase_RefreshToken_CreateAccessTokenError(t *testing.T) {
 	sessRepo.
 		On("RevokeByRefreshToken", user1.ctx, user1.refreshToken).
 		Return(true, nil)
+
+	cacheRepo.
+		On("DelSession", user1.ctx, session.ID).
+		Return(nil)
 
 	tokenProv.
 		On("CreateRefreshToken").

@@ -33,6 +33,8 @@ gofmt:
 .PHONY: test
 test-auth:
 	cd auth-service && go test -v -race -timeout 30s ./...
+test-auth-integration:
+	cd auth-service && go test ./... -tags=integration -v
 
 .PHONY: mocks
 mocks-auth:

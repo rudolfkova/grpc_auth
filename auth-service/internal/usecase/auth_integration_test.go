@@ -5,6 +5,7 @@ package usecase_test
 
 import (
 	"auth/internal/config"
+	"auth/internal/domain"
 	"auth/internal/infrastructure/sqlstore"
 	"auth/internal/repository"
 	"auth/internal/usecase"
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -80,9 +82,48 @@ func testDBIntegration(t *testing.T, databaseURL string) (*sql.DB, func(...strin
 	return db, cleanup
 }
 
+// memoryCache — простой кэш для интеграционных тестов без Redis.
+// Нам нужен только чтобы удовлетворить зависимость usecase.NewAuthUseCase.
+type memoryCache struct {
+	mu   sync.RWMutex
+	data map[int]domain.Session
+}
+
+func newMemoryCache() *memoryCache {
+	return &memoryCache{data: make(map[int]domain.Session)}
+}
+
+func (c *memoryCache) SetSession(ctx context.Context, keyID int, value domain.Session) error {
+	_ = ctx
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data[keyID] = value
+	return nil
+}
+
+func (c *memoryCache) GetSession(ctx context.Context, keyID int) (ok bool, value domain.Session, err error) {
+	_ = ctx
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	v, ok := c.data[keyID]
+	if !ok {
+		return false, domain.Session{}, nil
+	}
+	return true, v, nil
+}
+
+func (c *memoryCache) DelSession(ctx context.Context, keyID int) error {
+	_ = ctx
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.data, keyID)
+	return nil
+}
+
 func newIntegrationUseCase(db *sql.DB) *usecase.AuthUseCase {
 	userRepo := sqlstore.NewUserRepository(db)
 	sessRepo := sqlstore.NewSessionRepository(db)
+	cacheRepo := newMemoryCache()
 	tokenProv := sqlstore.NewTokenProvider([]byte(intCfg.JWTSecret))
 
 	logger := config.NewLogger(&intCfg)
@@ -90,6 +131,7 @@ func newIntegrationUseCase(db *sql.DB) *usecase.AuthUseCase {
 	return usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		intCfg.AccessTokenTTL,

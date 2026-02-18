@@ -173,7 +173,11 @@ func (a *AuthUseCase) Logout(ctx context.Context, refreshToken string) (success 
 
 	session, err := a.Sessions.SessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
-		return false, fmt.Errorf("%s: %w", op, err)
+		if !errors.Is(err, repository.ErrSessionNotFound) {
+			return false, fmt.Errorf("%s: %w", op, err)
+		}
+
+		return ok, nil
 	}
 
 	if err := a.Cache.DelSession(ctx, session.ID); err != nil {
