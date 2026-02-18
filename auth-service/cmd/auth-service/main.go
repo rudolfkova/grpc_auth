@@ -4,6 +4,7 @@ package main
 import (
 	"auth/internal/app"
 	"auth/internal/config"
+	rediscache "auth/internal/infrastructure/redis-cache"
 	"auth/internal/infrastructure/sqlstore"
 	"auth/internal/usecase"
 	"context"
@@ -46,9 +47,20 @@ func main() {
 		}
 	}()
 
+	cache, err := rediscache.NewCacheStore(*cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err = cache.Close(); err != nil {
+			logger.Error("cache bd closed with error", slog.String("err", err.Error()))
+		}
+	}()
+
 	auth := usecase.NewAuthUseCase(
 		sqlstore.NewUserRepository(db),
 		sqlstore.NewSessionRepository(db),
+		cache,
 		sqlstore.NewTokenProvider([]byte(cfg.JWTSecret)),
 		*logger,
 		cfg.AccessTokenTTL,

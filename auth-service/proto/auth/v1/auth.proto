@@ -16,6 +16,8 @@ service AuthService {
   rpc Logout (LogoutRequest) returns (LogoutResponse);
   // Обновление токена через refresh токен.
   rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
+  // ValidateSession проверяет, активна ли сессия (для других сервисов).
+  rpc ValidateSession (ValidateSessionRequest) returns (ValidateSessionResponse);
 }
 
 // Register ...
@@ -70,4 +72,13 @@ message RefreshTokenResponse {
   string refresh_token = 2;
   google.protobuf.Timestamp access_expires_at = 3;
   google.protobuf.Timestamp refresh_expires_at = 4;
+}
+
+// ValidateSession — проверка активности сессии по session_id (из JWT).
+message ValidateSessionRequest {
+  int64 session_id = 1;
+}
+
+message ValidateSessionResponse {
+  bool active = 1;
 }

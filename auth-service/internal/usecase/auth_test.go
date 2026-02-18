@@ -43,6 +43,7 @@ func TestAuthUseCase_Login_Success(t *testing.T) {
 	// m := mocks.*
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -50,6 +51,7 @@ func TestAuthUseCase_Login_Success(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -94,6 +96,7 @@ func TestAuthUseCase_Login_Success(t *testing.T) {
 func TestAuthUseCase_Login_WrongEmail(t *testing.T) {
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -101,6 +104,7 @@ func TestAuthUseCase_Login_WrongEmail(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -130,6 +134,7 @@ func TestAuthUseCase_Login_WrongEmail(t *testing.T) {
 func TestAuthUseCase_Login_WrongPassword(t *testing.T) {
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -137,6 +142,7 @@ func TestAuthUseCase_Login_WrongPassword(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -171,6 +177,7 @@ func TestAuthUseCase_Login_UserRepoError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -178,6 +185,7 @@ func TestAuthUseCase_Login_UserRepoError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -212,6 +220,7 @@ func TestAuthUseCase_Login_RefreshTokenProviderError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -219,6 +228,7 @@ func TestAuthUseCase_Login_RefreshTokenProviderError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -260,6 +270,7 @@ func TestAuthUseCase_Login_SessionRepoError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -267,6 +278,7 @@ func TestAuthUseCase_Login_SessionRepoError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -312,6 +324,7 @@ func TestAuthUseCase_Login_AccessTokenProviderError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -319,6 +332,7 @@ func TestAuthUseCase_Login_AccessTokenProviderError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -365,6 +379,7 @@ func TestAuthUseCase_Login_AccessTokenProviderError(t *testing.T) {
 func TestAuthUseCase_Register_Success(t *testing.T) {
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -372,6 +387,7 @@ func TestAuthUseCase_Register_Success(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -415,6 +431,7 @@ func TestAuthUseCase_Register_SaveUserError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -422,6 +439,7 @@ func TestAuthUseCase_Register_SaveUserError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -458,6 +476,7 @@ func TestAuthUseCase_Register_UserByEmailError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -465,6 +484,7 @@ func TestAuthUseCase_Register_UserByEmailError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -501,6 +521,7 @@ func TestAuthUseCase_IsAdmin_SeccessTrue(t *testing.T) {
 	// m := mocks.*
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -508,6 +529,7 @@ func TestAuthUseCase_IsAdmin_SeccessTrue(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -535,6 +557,7 @@ func TestAuthUseCase_IsAdmin_SeccessFalse(t *testing.T) {
 	// m := mocks.*
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -542,6 +565,7 @@ func TestAuthUseCase_IsAdmin_SeccessFalse(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -571,6 +595,7 @@ func TestAuthUseCase_IsAdmin_IsAdminError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -578,6 +603,7 @@ func TestAuthUseCase_IsAdmin_IsAdminError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -606,6 +632,7 @@ func TestAuthUseCase_IsAdmin_IsAdminError(t *testing.T) {
 func TestAuthUseCase_Logout_SeccessOK(t *testing.T) {
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -613,6 +640,7 @@ func TestAuthUseCase_Logout_SeccessOK(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -639,6 +667,7 @@ func TestAuthUseCase_Logout_SeccessOK(t *testing.T) {
 func TestAuthUseCase_Logout_SeccessFail(t *testing.T) {
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -646,6 +675,7 @@ func TestAuthUseCase_Logout_SeccessFail(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -675,6 +705,7 @@ func TestAuthUseCase_Logout_RevokeByRefreshTokenError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -682,6 +713,7 @@ func TestAuthUseCase_Logout_RevokeByRefreshTokenError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -710,6 +742,7 @@ func TestAuthUseCase_Logout_RevokeByRefreshTokenError(t *testing.T) {
 func TestAuthUseCase_RefreshToken_Success(t *testing.T) {
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -717,6 +750,7 @@ func TestAuthUseCase_RefreshToken_Success(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -773,6 +807,7 @@ func TestAuthUseCase_RefreshToken_SessionByRefreshTokenError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -780,6 +815,7 @@ func TestAuthUseCase_RefreshToken_SessionByRefreshTokenError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -811,6 +847,7 @@ func TestAuthUseCase_RefreshToken_InvalidStatus(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -818,6 +855,7 @@ func TestAuthUseCase_RefreshToken_InvalidStatus(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -858,6 +896,7 @@ func TestAuthUseCase_RefreshToken_Expired(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -865,6 +904,7 @@ func TestAuthUseCase_RefreshToken_Expired(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -906,6 +946,7 @@ func TestAuthUseCase_RefreshToken_CreateRefreshTokenError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -913,6 +954,7 @@ func TestAuthUseCase_RefreshToken_CreateRefreshTokenError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -964,6 +1006,7 @@ func TestAuthUseCase_RefreshToken_CreateSessionError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -971,6 +1014,7 @@ func TestAuthUseCase_RefreshToken_CreateSessionError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,
@@ -1025,6 +1069,7 @@ func TestAuthUseCase_RefreshToken_CreateAccessTokenError(t *testing.T) {
 
 	userRepo := new(repoMocks.UserRepository)
 	sessRepo := new(repoMocks.SessionRepository)
+	cacheRepo := new(repoMocks.Cache)
 	tokenProv := new(providerMocks.TokenProvider)
 
 	logger := config.NewLogger(&cfg)
@@ -1032,6 +1077,7 @@ func TestAuthUseCase_RefreshToken_CreateAccessTokenError(t *testing.T) {
 	uc := usecase.NewAuthUseCase(
 		userRepo,
 		sessRepo,
+		cacheRepo,
 		tokenProv,
 		*logger,
 		cfg.AccessTokenTTL,

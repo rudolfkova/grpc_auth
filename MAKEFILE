@@ -33,3 +33,14 @@ gofmt:
 .PHONY: test
 test-auth:
 	cd auth-service && go test -v -race -timeout 30s ./...
+
+.PHONY: mocks
+mocks-auth:
+	cd auth-service && mockery --name=Auth --dir=./internal/grpc/auth --output=./mocks/auth --outpkg=mocks
+	cd auth-service && mockery --name=UserRepository --dir=./internal/repository --output=./mocks/repository --outpkg=mocks
+	cd auth-service && mockery --name=SessionRepository --dir=./internal/repository --output=./mocks/repository --outpkg=mocks
+	cd auth-service && mockery --name=Cache --dir=./internal/repository --output=./mocks/repository --outpkg=mocks
+	cd auth-service && mockery --name=TokenProvider --dir=./provider --output=./mocks/provider --outpkg=mocks
+	cd auth-service && mockery --name=AuthServiceServer --dir=./proto/auth/v1 --output=./mocks/proto/auth/v1 --outpkg=mocks
+	cd auth-service && mockery --name=AuthServiceClient --dir=./proto/auth/v1 --output=./mocks/proto/auth/v1 --outpkg=mocks
+	cd auth-service && mockery --name=UnsafeAuthServiceServer --dir=./proto/auth/v1 --output=./mocks/proto/auth/v1 --outpkg=mocks

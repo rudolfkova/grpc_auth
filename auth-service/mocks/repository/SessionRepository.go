@@ -16,34 +16,6 @@ type SessionRepository struct {
 	mock.Mock
 }
 
-// SessionByID provides a mock function with given fields: ctx, id
-func (_m *SessionRepository) SessionByID(ctx context.Context, id int) (domain.Session, error) {
-	ret := _m.Called(ctx, id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SessionByID")
-	}
-
-	var r0 domain.Session
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int) (domain.Session, error)); ok {
-		return rf(ctx, id)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, int) domain.Session); ok {
-		r0 = rf(ctx, id)
-	} else {
-		r0 = ret.Get(0).(domain.Session)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
-		r1 = rf(ctx, id)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // CreateSession provides a mock function with given fields: ctx, userID, appID, refreshToken, refExpiresAt
 func (_m *SessionRepository) CreateSession(ctx context.Context, userID int, appID int, refreshToken string, refExpiresAt time.Time) (int, error) {
 	ret := _m.Called(ctx, userID, appID, refreshToken, refExpiresAt)
@@ -93,6 +65,34 @@ func (_m *SessionRepository) RevokeByRefreshToken(ctx context.Context, refreshTo
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(ctx, refreshToken)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SessionByID provides a mock function with given fields: ctx, id
+func (_m *SessionRepository) SessionByID(ctx context.Context, id int) (domain.Session, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SessionByID")
+	}
+
+	var r0 domain.Session
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int) (domain.Session, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int) domain.Session); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(domain.Session)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
+		r1 = rf(ctx, id)
 	} else {
 		r1 = ret.Error(1)
 	}

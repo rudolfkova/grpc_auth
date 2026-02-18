@@ -164,6 +164,36 @@ func (_m *AuthServiceServer) Register(_a0 context.Context, _a1 *authv1.RegisterR
 	return r0, r1
 }
 
+// ValidateSession provides a mock function with given fields: _a0, _a1
+func (_m *AuthServiceServer) ValidateSession(_a0 context.Context, _a1 *authv1.ValidateSessionRequest) (*authv1.ValidateSessionResponse, error) {
+	ret := _m.Called(_a0, _a1)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ValidateSession")
+	}
+
+	var r0 *authv1.ValidateSessionResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *authv1.ValidateSessionRequest) (*authv1.ValidateSessionResponse, error)); ok {
+		return rf(_a0, _a1)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *authv1.ValidateSessionRequest) *authv1.ValidateSessionResponse); ok {
+		r0 = rf(_a0, _a1)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*authv1.ValidateSessionResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *authv1.ValidateSessionRequest) error); ok {
+		r1 = rf(_a0, _a1)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // mustEmbedUnimplementedAuthServiceServer provides a mock function with no fields
 func (_m *AuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {
 	_m.Called()

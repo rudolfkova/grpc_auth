@@ -24,6 +24,7 @@ type Auth interface {
 	IsAdmin(ctx context.Context, userID int) (isAdmin bool, err error)
 	Logout(ctx context.Context, refreshToken string) (success bool, err error)
 	RefreshToken(ctx context.Context, refreshToken string) (token domain.Token, err error)
+	ValidateSession(ctx context.Context, sessionID int) (active bool, err error)
 }
 
 type serverAPI struct {
@@ -124,4 +125,10 @@ func (s *serverAPI) RefreshToken(ctx context.Context, req *authv1.RefreshTokenRe
 		AccessExpiresAt:  timestamppb.New(token.AccessExpireAt),
 		RefreshExpiresAt: timestamppb.New(token.RefreshExpireAt),
 	}, nil
+}
+
+func (s *serverAPI) ValidateSession(ctx context.Context, req *authv1.ValidateSessionRequest) (*authv1.ValidateSessionResponse, error) {
+	_ = ctx
+	_ = req
+	return &authv1.ValidateSessionResponse{}, nil
 }

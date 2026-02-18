@@ -22,6 +22,7 @@ const (
 type AuthUseCase struct {
 	Users    repository.UserRepository
 	Sessions repository.SessionRepository
+	Cache    repository.Cache
 	Token    provider.TokenProvider
 
 	Logger slog.Logger
@@ -34,6 +35,7 @@ type AuthUseCase struct {
 func NewAuthUseCase(
 	users repository.UserRepository,
 	sessions repository.SessionRepository,
+	cache repository.Cache,
 	token provider.TokenProvider,
 	logger slog.Logger,
 	accessTokenTTL time.Duration,
@@ -41,6 +43,7 @@ func NewAuthUseCase(
 	return &AuthUseCase{
 		Users:           users,
 		Sessions:        sessions,
+		Cache:           cache,
 		Token:           token,
 		Logger:          logger,
 		AccessTokenTTL:  accessTokenTTL,
@@ -215,4 +218,11 @@ func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (to
 		RefreshToken:    newRefreshToken,
 		RefreshExpireAt: refExp,
 	}, nil
+}
+
+// ValidateSession ...
+func (a *AuthUseCase) ValidateSession(ctx context.Context, sessionID int) (active bool, err error) {
+	_ = ctx
+	_ = sessionID
+	return false, nil
 }
