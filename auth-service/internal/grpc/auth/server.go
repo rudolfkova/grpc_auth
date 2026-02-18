@@ -127,8 +127,15 @@ func (s *serverAPI) RefreshToken(ctx context.Context, req *authv1.RefreshTokenRe
 	}, nil
 }
 
+// ValidateSession ...
 func (s *serverAPI) ValidateSession(ctx context.Context, req *authv1.ValidateSessionRequest) (*authv1.ValidateSessionResponse, error) {
-	_ = ctx
-	_ = req
-	return &authv1.ValidateSessionResponse{}, nil
+	active, err := s.auth.ValidateSession(ctx, int(req.GetSessionId()))
+	if err != nil {
+		// если хочешь заморочиться, можешь маппить ошибки по‑красивому
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+
+	return &authv1.ValidateSessionResponse{
+		Active: active,
+	}, nil
 }

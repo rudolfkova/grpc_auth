@@ -265,8 +265,8 @@ func (a *AuthUseCase) ValidateSession(ctx context.Context, sessionID int) (activ
 	}
 
 	isActive := session.Status == "active" && time.Now().Before(session.RefreshExpiresAt)
-
-	if isActive {
+	log.Info("validate from cache")
+	if isActive { 
 		return true, nil
 	}
 	return false, nil
