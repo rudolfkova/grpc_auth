@@ -15,8 +15,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-var ()
-
 // Auth ...
 type Auth interface {
 	Register(ctx context.Context, email string, password string) (userID int, err error)
@@ -41,8 +39,11 @@ func Register(gRPCServer *grpc.Server, auth Auth) {
 
 // Register ...
 func (s *serverAPI) Register(ctx context.Context, req *authv1.RegisterRequest) (*authv1.RegisterResponse, error) {
+	if err := ValidateRegisterRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "internal error")
+	}
+	
 	userID, err := s.auth.Register(ctx, req.GetEmail(), req.GetPassword())
-
 	if err != nil {
 		if errors.Is(err, repository.ErrUserAlreadyExists) {
 			return nil, status.Error(codes.AlreadyExists, "user with this email already exists")

@@ -20,15 +20,15 @@ const (
 
 // AuthUseCase ...
 type AuthUseCase struct {
-	Users    repository.UserRepository
-	Sessions repository.SessionRepository
-	Cache    repository.Cache
-	Token    provider.TokenProvider
+	users    repository.UserRepository
+	sessions repository.SessionRepository
+	cache    repository.Cache
+	token    provider.TokenProvider
 
-	Logger slog.Logger
+	logger slog.Logger
 
-	AccessTokenTTL  time.Duration
-	RefreshTokenTTL time.Duration
+	accessTokenTTL  time.Duration
+	refreshTokenTTL time.Duration
 }
 
 // NewAuthUseCase ...
@@ -41,13 +41,13 @@ func NewAuthUseCase(
 	accessTokenTTL time.Duration,
 	refreshTokenTTL time.Duration) *AuthUseCase {
 	return &AuthUseCase{
-		Users:           users,
-		Sessions:        sessions,
-		Cache:           cache,
-		Token:           token,
-		Logger:          logger,
-		AccessTokenTTL:  accessTokenTTL,
-		RefreshTokenTTL: refreshTokenTTL,
+		users:           users,
+		sessions:        sessions,
+		cache:           cache,
+		token:           token,
+		logger:          logger,
+		accessTokenTTL:  accessTokenTTL,
+		refreshTokenTTL: refreshTokenTTL,
 	}
 }
 
@@ -55,7 +55,7 @@ func NewAuthUseCase(
 func (a *AuthUseCase) Register(ctx context.Context, email string, password string) (userID int, err error) {
 	const op = "Auth.Register"
 
-	log := a.Logger.With(
+	log := a.logger.With(
 		slog.String("op", op),
 		slog.String("username", email),
 	)
@@ -67,11 +67,11 @@ func (a *AuthUseCase) Register(ctx context.Context, email string, password strin
 		return emptyID, fmt.Errorf("%s: %w", op, err)
 	}
 
-	if err := a.Users.SaveUser(ctx, email, passHash); err != nil {
+	if err := a.users.SaveUser(ctx, email, passHash); err != nil {
 		return emptyID, fmt.Errorf("%s: %w", op, err)
 	}
 
-	user, err := a.Users.UserByEmail(ctx, email)
+	user, err := a.users.UserByEmail(ctx, email)
 	if err != nil {
 		return emptyID, fmt.Errorf("%s: %w", op, err)
 	}
@@ -85,17 +85,17 @@ func (a *AuthUseCase) Register(ctx context.Context, email string, password strin
 func (a *AuthUseCase) Login(ctx context.Context, email string, password string, appID int) (token domain.Token, err error) {
 	const op = "Auth.Login"
 
-	log := a.Logger.With(
+	log := a.logger.With(
 		slog.String("op", op),
 		slog.String("username", email),
 	)
 
 	log.Info("attempting to login user")
 
-	user, err := a.Users.UserByEmail(ctx, email)
+	user, err := a.users.UserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			a.Logger.Warn("user not found")
+			a.logger.Warn("user not found")
 
 			return domain.Token{}, fmt.Errorf("%s: %w", op, repository.ErrInvalidCredentials)
 		}
@@ -104,26 +104,26 @@ func (a *AuthUseCase) Login(ctx context.Context, email string, password string, 
 	}
 
 	if err := bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)); err != nil {
-		a.Logger.Info("invalid credentials")
+		a.logger.Info("invalid credentials")
 
 		return domain.Token{}, fmt.Errorf("%s: %w", op, repository.ErrInvalidCredentials)
 	}
 
-	refreshToken, err := a.Token.CreateRefreshToken()
+	refreshToken, err := a.token.CreateRefreshToken()
 	if err != nil {
 		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	refExp := time.Now().Add(a.RefreshTokenTTL)
+	refExp := time.Now().Add(a.refreshTokenTTL)
 
-	sessionID, err := a.Sessions.CreateSession(ctx, int(user.ID), int(appID), refreshToken, refExp)
+	sessionID, err := a.sessions.CreateSession(ctx, int(user.ID), int(appID), refreshToken, refExp)
 	if err != nil {
 		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	accExp := time.Now().Add(a.AccessTokenTTL)
+	accExp := time.Now().Add(a.accessTokenTTL)
 
-	accessToken, err := a.Token.CreateAccessToken(int(user.ID), sessionID, int(appID), accExp)
+	accessToken, err := a.token.CreateAccessToken(int(user.ID), sessionID, int(appID), accExp)
 	if err != nil {
 		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -141,14 +141,14 @@ func (a *AuthUseCase) Login(ctx context.Context, email string, password string, 
 func (a *AuthUseCase) IsAdmin(ctx context.Context, userID int) (bool, error) {
 	const op = "Auth.IsAdmin"
 
-	log := a.Logger.With(
+	log := a.logger.With(
 		slog.String("op", op),
 		slog.String("userID", fmt.Sprint(userID)),
 	)
 
 	log.Info("check permisions")
 
-	isAdmin, err := a.Users.IsAdmin(ctx, userID)
+	isAdmin, err := a.users.IsAdmin(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
@@ -160,28 +160,28 @@ func (a *AuthUseCase) IsAdmin(ctx context.Context, userID int) (bool, error) {
 func (a *AuthUseCase) Logout(ctx context.Context, refreshToken string) (success bool, err error) {
 	const op = "Auth.Logout"
 
-	log := a.Logger.With(
+	log := a.logger.With(
 		slog.String("op", op),
 	)
 
 	log.Info("logout user by refreshToken")
 
-	ok, err := a.Sessions.RevokeByRefreshToken(ctx, refreshToken)
+	session, err := a.sessions.SessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
+		if !errors.Is(err, repository.ErrSessionNotFound) {
+			return false, nil
+		}
+
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
 
-	session, err := a.Sessions.SessionByRefreshToken(ctx, refreshToken)
-	if err != nil {
-		if !errors.Is(err, repository.ErrSessionNotFound) {
-			return false, fmt.Errorf("%s: %w", op, err)
-		}
-
-		return ok, nil
+	if err := a.cache.DelSession(ctx, session.ID); err != nil {
+		log.Warn("session not deleted from cache")
 	}
 
-	if err := a.Cache.DelSession(ctx, session.ID); err != nil {
-		log.Warn("session not deleted from cache")
+	ok, err := a.sessions.RevokeByRefreshToken(ctx, refreshToken)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return ok, nil
@@ -191,13 +191,13 @@ func (a *AuthUseCase) Logout(ctx context.Context, refreshToken string) (success 
 func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (token domain.Token, err error) {
 	const op = "Auth.RefreshToken"
 
-	log := a.Logger.With(
+	log := a.logger.With(
 		slog.String("op", op),
 	)
 
 	log.Info("refresh token by refreshToken")
 
-	session, err := a.Sessions.SessionByRefreshToken(ctx, refreshToken)
+	session, err := a.sessions.SessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
 		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -206,24 +206,24 @@ func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (to
 		return domain.Token{}, fmt.Errorf("%s: %w", op, provider.ErrInvalidRefreshToken)
 	}
 
-	_, _ = a.Sessions.RevokeByRefreshToken(ctx, refreshToken)
-	if err := a.Cache.DelSession(ctx, session.ID); err != nil {
+	_, _ = a.sessions.RevokeByRefreshToken(ctx, refreshToken)
+	if err := a.cache.DelSession(ctx, session.ID); err != nil {
 		log.Warn("session not deleted from cache")
 	}
 
-	newRefreshToken, err := a.Token.CreateRefreshToken()
+	newRefreshToken, err := a.token.CreateRefreshToken()
 	if err != nil {
 		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
-	refExp := time.Now().Add(a.RefreshTokenTTL)
+	refExp := time.Now().Add(a.refreshTokenTTL)
 
-	sessionID, err := a.Sessions.CreateSession(ctx, session.UserID, session.AppID, newRefreshToken, refExp)
+	sessionID, err := a.sessions.CreateSession(ctx, session.UserID, session.AppID, newRefreshToken, refExp)
 	if err != nil {
 		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	accExp := time.Now().Add(a.AccessTokenTTL)
-	accessToken, err := a.Token.CreateAccessToken(session.UserID, sessionID, session.AppID, accExp)
+	accExp := time.Now().Add(a.accessTokenTTL)
+	accessToken, err := a.token.CreateAccessToken(session.UserID, sessionID, session.AppID, accExp)
 	if err != nil {
 		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -240,39 +240,41 @@ func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (to
 func (a *AuthUseCase) ValidateSession(ctx context.Context, sessionID int) (active bool, err error) {
 	const op = "Auth.ValidateSession"
 
-	log := a.Logger.With(
+	log := a.logger.With(
 		slog.String("op", op),
 	)
 
 	log.Info("validate session")
 
-	ok, session, err := a.Cache.GetSession(ctx, sessionID)
+	ok, session, err := a.cache.GetSession(ctx, sessionID)
 	if err != nil {
 		log.Warn("session not get from cache")
 		ok = false
 	}
 
 	if !ok {
-		session, err := a.Sessions.SessionByID(ctx, sessionID)
+		session, err := a.sessions.SessionByID(ctx, sessionID)
 		if err != nil {
 			return false, fmt.Errorf("%s: %w", op, err)
 		}
-		if err = a.Cache.SetSession(ctx, sessionID, session); err != nil {
+		if err = a.cache.SetSession(ctx, sessionID, session); err != nil {
 			log.Warn("session not set in cache")
 		}
-		isActive := session.Status == "active" && time.Now().Before(session.RefreshExpiresAt)
-		if isActive {
+		if isSessionActive(session) {
 			return true, nil
 		}
 		return false, nil
 
 	}
 
-	isActive := session.Status == "active" && time.Now().Before(session.RefreshExpiresAt)
 	log.Info("validate from cache")
-	if isActive { 
+	if isSessionActive(session) {
 		return true, nil
 	}
 	return false, nil
 
+}
+
+func isSessionActive(s domain.Session) bool {
+	return s.Status == "active" && time.Now().Before(s.RefreshExpiresAt)
 }

@@ -43,8 +43,6 @@ func (r *SessionRepository) SessionByID(ctx context.Context, id int) (domain.Ses
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			// отдельной ошибки под "session not found" у тебя пока нет,
-			// можешь завести в package repository по аналогии с пользователем.
 			return domain.Session{}, fmt.Errorf("%s: %w", op, repository.ErrSessionNotFound)
 		}
 
@@ -121,7 +119,6 @@ func (r *SessionRepository) SessionByRefreshToken(ctx context.Context, refreshTo
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			// аналогично, можно вернуть repository.ErrSessionNotFound
 			return domain.Session{}, fmt.Errorf("%s: %w", op, repository.ErrSessionNotFound)
 		}
 

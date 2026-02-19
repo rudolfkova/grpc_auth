@@ -1,8 +1,8 @@
-// Package sqlstore_test ...
-package sqlstore_test
+// Package token_test ...
+package tokengen_test
 
 import (
-	"auth/internal/infrastructure/sqlstore"
+	"auth/internal/infrastructure/tokengen"
 	"testing"
 	"time"
 
@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	provider = sqlstore.NewTokenProvider([]byte("123"))
+	provider = tokengen.NewTokenProvider([]byte("123"))
 	secret   = []byte("123")
 	user     = testUser{
 		userID:    42,
@@ -23,15 +23,10 @@ var (
 )
 
 type testUser struct {
-	userID          int
-	sessionID       int
-	appID           int
-	accExp          time.Time
-	email           string
-	password        string
-	passHash        []byte
-	refreshToken    string
-	refreshTokenExp time.Time
+	userID    int
+	sessionID int
+	appID     int
+	accExp    time.Time
 }
 
 func TestCreateAccessToken_Success(t *testing.T) {

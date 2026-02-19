@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 // UserRepository ...
@@ -30,8 +32,10 @@ func (r *UserRepository) SaveUser(ctx context.Context, email string, passHash []
 
 	_, err := r.db.ExecContext(ctx, q, email, string(passHash))
 	if err != nil {
-		// тут можешь распарсить pg error и вернуть repository.ErrUserAlreadyExists,
-		// если ошибка про unique constraint по email
+		var pgErr *pq.Error
+		if errors.As(err, &pgErr) && pgErr.Code == pq.ErrorCode("23505") {
+			return fmt.Errorf("%s: %w", op, repository.ErrUserAlreadyExists)
+		}
 		return fmt.Errorf("%s: %w", op, err)
 	}
 

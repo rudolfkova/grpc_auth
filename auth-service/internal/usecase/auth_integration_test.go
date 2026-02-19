@@ -7,6 +7,7 @@ import (
 	"auth/internal/config"
 	"auth/internal/domain"
 	"auth/internal/infrastructure/sqlstore"
+	"auth/internal/infrastructure/tokengen"
 	"auth/internal/repository"
 	"auth/internal/usecase"
 	"auth/provider"
@@ -124,7 +125,7 @@ func newIntegrationUseCase(db *sql.DB) *usecase.AuthUseCase {
 	userRepo := sqlstore.NewUserRepository(db)
 	sessRepo := sqlstore.NewSessionRepository(db)
 	cacheRepo := newMemoryCache()
-	tokenProv := sqlstore.NewTokenProvider([]byte(intCfg.JWTSecret))
+	tokenProv := tokengen.NewTokenProvider([]byte(intCfg.JWTSecret))
 
 	logger := config.NewLogger(&intCfg)
 
@@ -382,4 +383,3 @@ func TestAuthUseCase_RefreshToken_ExpiredByDBMutation_Integration(t *testing.T) 
 	_, err = uc.RefreshToken(ctx, tok.RefreshToken)
 	require.ErrorIs(t, err, provider.ErrInvalidRefreshToken)
 }
-

@@ -24,6 +24,16 @@ var (
 	ctx        = context.Background()
 )
 
+type testUser struct {
+	userID          int
+	appID           int
+	email           string
+	password        string
+	passHash        []byte
+	refreshToken    string
+	refreshTokenExp time.Time
+}
+
 func init() {
 	c := config.NewConfig()
 	_, err := toml.DecodeFile(configPath, c)

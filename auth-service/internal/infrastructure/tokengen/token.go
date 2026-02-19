@@ -1,5 +1,5 @@
-// Package sqlstore ...
-package sqlstore
+// Package tokengen ...
+package tokengen
 
 import (
 	"crypto/rand"

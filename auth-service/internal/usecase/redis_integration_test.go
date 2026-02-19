@@ -5,8 +5,9 @@ package usecase_test
 
 import (
 	"auth/internal/config"
-	"auth/internal/infrastructure/redis-cache"
+	rediscache "auth/internal/infrastructure/redis-cache"
 	"auth/internal/infrastructure/sqlstore"
+	"auth/internal/infrastructure/tokengen"
 	"auth/internal/usecase"
 	"context"
 	"database/sql"
@@ -41,7 +42,7 @@ func testRedisDBIntegration(t *testing.T) (*sql.DB, *usecase.AuthUseCase, func()
 		sqlstore.NewUserRepository(db),
 		sqlstore.NewSessionRepository(db),
 		cache,
-		sqlstore.NewTokenProvider([]byte(intCfg.JWTSecret)),
+		tokengen.NewTokenProvider([]byte(intCfg.JWTSecret)),
 		*logger,
 		intCfg.AccessTokenTTL,
 		intCfg.RefreshTokenTTL,
