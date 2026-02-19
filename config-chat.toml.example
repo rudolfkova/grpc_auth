@@ -1,0 +1,10 @@
+database_url = "host=localhost dbname=chat user=user password=password sslmode=disable"
+test_database_url = "host=localhost dbname=chat user=user password=password sslmode=disable"
+
+bind_addr = ":50052"
+
+log_level = "DEBUG"
+jwt_secret = ""
+
+redis_addr = "localhost:6379"
+test_redis_addr = "localhost:6379"

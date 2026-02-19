@@ -42,7 +42,7 @@ func (s *serverAPI) Register(ctx context.Context, req *authv1.RegisterRequest) (
 	if err := ValidateRegisterRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "internal error")
 	}
-	
+
 	userID, err := s.auth.Register(ctx, req.GetEmail(), req.GetPassword())
 	if err != nil {
 		if errors.Is(err, repository.ErrUserAlreadyExists) {
