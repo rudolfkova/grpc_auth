@@ -2,8 +2,8 @@
 package grpcauth
 
 import (
-	"auth/internal/domain"
 	"auth/internal/repository"
+	tokenjwt "auth/pkg/token"
 	authv1 "auth/proto/auth/v1"
 	"auth/provider"
 	"context"
@@ -18,10 +18,10 @@ import (
 // Auth ...
 type Auth interface {
 	Register(ctx context.Context, email string, password string) (userID int, err error)
-	Login(ctx context.Context, email string, password string, appID int) (token domain.Token, err error)
+	Login(ctx context.Context, email string, password string, appID int) (token tokenjwt.Token, err error)
 	IsAdmin(ctx context.Context, userID int) (isAdmin bool, err error)
 	Logout(ctx context.Context, refreshToken string) (success bool, err error)
-	RefreshToken(ctx context.Context, refreshToken string) (token domain.Token, err error)
+	RefreshToken(ctx context.Context, refreshToken string) (token tokenjwt.Token, err error)
 	ValidateSession(ctx context.Context, sessionID int) (active bool, err error)
 }
 

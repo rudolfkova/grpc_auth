@@ -2,7 +2,8 @@
 package chat
 
 import (
-	"chat/model"
+	"chat/internal/interceptor"
+	"chat/internal/model"
 	chatv1 "chat/proto/chat/v1"
 	"context"
 	"log/slog"
@@ -90,6 +91,15 @@ func (s *serverAPI) GetUserChats(ctx context.Context, req *chatv1.GetUserChatsRe
 	)
 	log.Info("GetUserChats")
 
+	userID, ok := ctx.Value(interceptor.UserIDKey).(int)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	if userID != int(req.GetUserId()) {
+		return nil, status.Error(codes.PermissionDenied, "permission denied")
+	}
+
 	chatPreview, err := s.chat.GetUserChats(ctx, int(req.GetUserId()), int(req.GetLimit()), int(req.GetOffset()))
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
@@ -114,6 +124,15 @@ func (s *serverAPI) SendMessage(ctx context.Context, req *chatv1.SendMessageRequ
 		slog.String("op", op),
 	)
 	log.Info("SendMessage")
+
+	userID, ok := ctx.Value(interceptor.UserIDKey).(int)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	if userID != int(req.GetSenderId()) {
+		return nil, status.Error(codes.PermissionDenied, "permission denied")
+	}
 
 	massageID, createdAt, err := s.chat.SendMessage(ctx, int(req.GetChatId()), int(req.GetSenderId()), req.GetText())
 	if err != nil {

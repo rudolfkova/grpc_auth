@@ -1,8 +1,8 @@
 package grpcauth
 
 import (
-	"auth/internal/domain"
 	authMocks "auth/mocks/auth"
+	tokenjwt "auth/pkg/token"
 	authv1 "auth/proto/auth/v1"
 	"context"
 	"fmt"
@@ -83,7 +83,7 @@ func TestGRPCAuth_LoginSuccess(t *testing.T) {
 		auth: auth,
 	}
 
-	respToken := domain.Token{
+	respToken := tokenjwt.Token{
 		AccessToken:     "ACCESS",
 		RefreshToken:    "REFRESH",
 		AccessExpireAt:  time.Now(),
@@ -122,7 +122,7 @@ func TestGRPCAuth_LoginInternalError(t *testing.T) {
 
 	auth.
 		On("Login", ctx, req.GetEmail(), req.GetPassword(), int(req.GetAppId())).
-		Return(domain.Token{}, errFailed)
+		Return(tokenjwt.Token{}, errFailed)
 
 	resp, err := server.Login(ctx, req)
 
@@ -280,7 +280,7 @@ func TestGRPCAuth_RefreshTokenSuccess(t *testing.T) {
 		auth: auth,
 	}
 
-	respToken := domain.Token{
+	respToken := tokenjwt.Token{
 		AccessToken:     "ACCESS",
 		RefreshToken:    "REFRESH",
 		AccessExpireAt:  time.Now(),
@@ -317,7 +317,7 @@ func TestGRPCAuth_RefreshTokenInternalError(t *testing.T) {
 
 	auth.
 		On("RefreshToken", ctx, req.GetRefreshToken()).
-		Return(domain.Token{}, errFailed)
+		Return(tokenjwt.Token{}, errFailed)
 
 	resp, err := server.RefreshToken(ctx, req)
 

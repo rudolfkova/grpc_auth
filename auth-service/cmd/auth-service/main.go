@@ -6,8 +6,8 @@ import (
 	"auth/internal/config"
 	rediscache "auth/internal/infrastructure/redis-cache"
 	"auth/internal/infrastructure/sqlstore"
-	"auth/internal/infrastructure/tokengen"
 	"auth/internal/usecase"
+	tokenjwt "auth/pkg/token"
 	"context"
 	"flag"
 	"log"
@@ -62,7 +62,7 @@ func main() {
 		sqlstore.NewUserRepository(db),
 		sqlstore.NewSessionRepository(db),
 		cache,
-		tokengen.NewTokenProvider([]byte(cfg.JWTSecret)),
+		tokenjwt.NewTokenProvider([]byte(cfg.JWTSecret)),
 		*logger,
 		cfg.AccessTokenTTL,
 		cfg.RefreshTokenTTL,

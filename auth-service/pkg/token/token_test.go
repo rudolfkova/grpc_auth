@@ -1,8 +1,8 @@
 // Package token_test ...
-package tokengen_test
+package tokenjwt_test
 
 import (
-	"auth/internal/infrastructure/tokengen"
+	tokenjwt "auth/pkg/token"
 	"testing"
 	"time"
 
@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	provider = tokengen.NewTokenProvider([]byte("123"))
+	provider = tokenjwt.NewTokenProvider([]byte("123"))
 	secret   = []byte("123")
 	user     = testUser{
 		userID:    42,

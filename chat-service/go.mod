@@ -10,6 +10,7 @@ require (
 )
 
 require (
+	github.com/rudolfkova/grpc_auth v0.0.0-20260222074358-0eac7336e7ae // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect

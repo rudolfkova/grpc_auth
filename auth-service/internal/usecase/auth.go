@@ -4,6 +4,7 @@ package usecase
 import (
 	"auth/internal/domain"
 	"auth/internal/repository"
+	tokenjwt "auth/pkg/token"
 	"auth/provider"
 	"context"
 	"errors"
@@ -82,7 +83,7 @@ func (a *AuthUseCase) Register(ctx context.Context, email string, password strin
 }
 
 // Login ...
-func (a *AuthUseCase) Login(ctx context.Context, email string, password string, appID int) (token domain.Token, err error) {
+func (a *AuthUseCase) Login(ctx context.Context, email string, password string, appID int) (token tokenjwt.Token, err error) {
 	const op = "Auth.Login"
 
 	log := a.logger.With(
@@ -97,38 +98,38 @@ func (a *AuthUseCase) Login(ctx context.Context, email string, password string, 
 		if errors.Is(err, repository.ErrUserNotFound) {
 			a.logger.Warn("user not found")
 
-			return domain.Token{}, fmt.Errorf("%s: %w", op, repository.ErrInvalidCredentials)
+			return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, repository.ErrInvalidCredentials)
 		}
 
-		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)); err != nil {
 		a.logger.Info("invalid credentials")
 
-		return domain.Token{}, fmt.Errorf("%s: %w", op, repository.ErrInvalidCredentials)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, repository.ErrInvalidCredentials)
 	}
 
 	refreshToken, err := a.token.CreateRefreshToken()
 	if err != nil {
-		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	refExp := time.Now().Add(a.refreshTokenTTL)
 
 	sessionID, err := a.sessions.CreateSession(ctx, int(user.ID), int(appID), refreshToken, refExp)
 	if err != nil {
-		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	accExp := time.Now().Add(a.accessTokenTTL)
 
 	accessToken, err := a.token.CreateAccessToken(int(user.ID), sessionID, int(appID), accExp)
 	if err != nil {
-		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return domain.Token{
+	return tokenjwt.Token{
 		AccessToken:     accessToken,
 		AccessExpireAt:  accExp,
 		RefreshToken:    refreshToken,
@@ -188,7 +189,7 @@ func (a *AuthUseCase) Logout(ctx context.Context, refreshToken string) (success 
 }
 
 // RefreshToken ...
-func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (token domain.Token, err error) {
+func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (token tokenjwt.Token, err error) {
 	const op = "Auth.RefreshToken"
 
 	log := a.logger.With(
@@ -199,11 +200,11 @@ func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (to
 
 	session, err := a.sessions.SessionByRefreshToken(ctx, refreshToken)
 	if err != nil {
-		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	if session.Status != "active" || time.Now().After(session.RefreshExpiresAt) {
-		return domain.Token{}, fmt.Errorf("%s: %w", op, provider.ErrInvalidRefreshToken)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, provider.ErrInvalidRefreshToken)
 	}
 
 	_, _ = a.sessions.RevokeByRefreshToken(ctx, refreshToken)
@@ -213,22 +214,22 @@ func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (to
 
 	newRefreshToken, err := a.token.CreateRefreshToken()
 	if err != nil {
-		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 	refExp := time.Now().Add(a.refreshTokenTTL)
 
 	sessionID, err := a.sessions.CreateSession(ctx, session.UserID, session.AppID, newRefreshToken, refExp)
 	if err != nil {
-		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	accExp := time.Now().Add(a.accessTokenTTL)
 	accessToken, err := a.token.CreateAccessToken(session.UserID, sessionID, session.AppID, accExp)
 	if err != nil {
-		return domain.Token{}, fmt.Errorf("%s: %w", op, err)
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return domain.Token{
+	return tokenjwt.Token{
 		AccessToken:     accessToken,
 		AccessExpireAt:  accExp,
 		RefreshToken:    newRefreshToken,
