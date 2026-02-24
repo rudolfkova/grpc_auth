@@ -18,7 +18,7 @@ import (
 // Chat ...
 type Chat interface {
 	GetOrCreateChat(ctx context.Context, initiatorID int, recipientID int) (chatID int, created bool, createdAt time.Time, err error)
-	GetMassages(ctx context.Context, chatID int, limit int, cursor string) (massages []model.MassageDTO, nextCursor string, err error)
+	GetMessages(ctx context.Context, chatID int, limit int, cursor string) (massages []model.MassageDTO, nextCursor string, err error)
 	GetUserChats(ctx context.Context, userID int, limit int, offset int) (chats []model.ChatPreviewDTO, err error)
 	SendMessage(ctx context.Context, chatID int, senderID int, text string) (massageID int, createdAt time.Time, err error)
 }
@@ -26,12 +26,12 @@ type Chat interface {
 type serverAPI struct {
 	chatv1.UnimplementedChatServiceServer
 	chat   Chat
-	logger slog.Logger
+	logger *slog.Logger
 }
 
 // Register ...
-func Register(gRPCServer *grpc.Server, chat Chat) {
-	chatv1.RegisterChatServiceServer(gRPCServer, &serverAPI{chat: chat})
+func Register(gRPCServer *grpc.Server, chat Chat, logger *slog.Logger) {
+	chatv1.RegisterChatServiceServer(gRPCServer, &serverAPI{chat: chat, logger: logger})
 }
 
 // Ниже бизнес логика сервиса, rpc методы.
@@ -56,14 +56,14 @@ func (s *serverAPI) GetOrCreateChat(ctx context.Context, req *chatv1.GetOrCreate
 }
 
 // GetMassages ...
-func (s *serverAPI) GetMassages(ctx context.Context, req *chatv1.GetMessagesRequest) (*chatv1.GetMessagesResponse, error) {
+func (s *serverAPI) GetMessages(ctx context.Context, req *chatv1.GetMessagesRequest) (*chatv1.GetMessagesResponse, error) {
 	const op = "serverAPI.GetMassages"
 	log := s.logger.With(
 		slog.String("op", op),
 	)
 	log.Info("GetMassages")
 
-	messages, nextCursor, err := s.chat.GetMassages(ctx, int(req.GetChatId()), int(req.GetLimit()), req.GetCursor())
+	messages, nextCursor, err := s.chat.GetMessages(ctx, int(req.GetChatId()), int(req.GetLimit()), req.GetCursor())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
 	}

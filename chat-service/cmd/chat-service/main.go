@@ -2,10 +2,16 @@
 package main
 
 import (
+	"chat/internal/app"
 	"chat/internal/config"
+	"chat/internal/service"
+	"context"
 	"flag"
 	"log"
 	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/BurntSushi/toml"
 )
@@ -27,15 +33,21 @@ func main() {
 		log.Fatal(err)
 	}
 	logger := config.NewLogger(cfg)
-	log := logger.With(
-		slog.String("BindAddr:", cfg.BindAddr),
-		slog.String("DatabaseURL:", cfg.DatabaseURL),
-		slog.String("JWTSecret:", cfg.JWTSecret),
-		slog.String("LogLevel:", cfg.LogLevel),
-		slog.String("RedisAddr:", cfg.RedisAddr),
-		slog.String("TestDatabaseURL:", cfg.TestDatabaseURL),
-		slog.String("TestRedisAddr:", cfg.TestRedisAddr),
-	)
-	log.Info("init")
+
+	chatAPI := service.NewService()
+
+	app := app.New(logger, cfg.BindAddr, chatAPI)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		if err := app.GRPCServer.Run(); err != nil {
+			logger.Error("grpc server stopped with error", slog.String("err", err.Error()))
+		}
+	}()
+
+	<-ctx.Done()
+	app.GRPCServer.Stop()
 
 }
