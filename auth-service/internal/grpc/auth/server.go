@@ -8,6 +8,7 @@ import (
 	"auth/provider"
 	"context"
 	"errors"
+	"log/slog"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -27,12 +28,13 @@ type Auth interface {
 
 type serverAPI struct {
 	authv1.UnimplementedAuthServiceServer
-	auth Auth
+	auth   Auth
+	logger *slog.Logger
 }
 
 // Register ...
-func Register(gRPCServer *grpc.Server, auth Auth) {
-	authv1.RegisterAuthServiceServer(gRPCServer, &serverAPI{auth: auth})
+func Register(gRPCServer *grpc.Server, auth Auth, log *slog.Logger) {
+	authv1.RegisterAuthServiceServer(gRPCServer, &serverAPI{auth: auth, logger: log})
 }
 
 // Ниже бизнес логика сервиса, rpc методы.
@@ -66,6 +68,7 @@ func (s *serverAPI) Login(ctx context.Context, req *authv1.LoginRequest) (*authv
 		if errors.Is(err, repository.ErrInvalidCredentials) {
 			return nil, status.Error(codes.Unauthenticated, "wrong email or password")
 		}
+		s.logger.Warn(err.Error())
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 
@@ -130,6 +133,7 @@ func (s *serverAPI) RefreshToken(ctx context.Context, req *authv1.RefreshTokenRe
 
 // ValidateSession ...
 func (s *serverAPI) ValidateSession(ctx context.Context, req *authv1.ValidateSessionRequest) (*authv1.ValidateSessionResponse, error) {
+
 	active, err := s.auth.ValidateSession(ctx, int(req.GetSessionId()))
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")

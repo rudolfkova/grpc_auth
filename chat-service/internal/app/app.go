@@ -3,6 +3,8 @@ package app
 
 import (
 	grpcapp "chat/internal/app/grpc"
+	authclient "chat/internal/client/auth"
+	"chat/internal/config"
 	"chat/internal/grpc/chat"
 	"log/slog"
 )
@@ -13,8 +15,8 @@ type App struct {
 }
 
 // New ...
-func New(log *slog.Logger, port string, auth chat.Chat) *App {
-	gRPCApp := grpcapp.New(log, port, auth)
+func New(log *slog.Logger, auth chat.Chat, cfg *config.Config, authClient *authclient.Client) *App {
+	gRPCApp := grpcapp.New(log, cfg.BindAddr, auth, cfg, authClient)
 	return &App{
 		GRPCServer: gRPCApp,
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	provider = tokenjwt.NewTokenProvider([]byte("123"))
+	provider = tokenjwt.NewTokenProvider("123")
 	secret   = []byte("123")
 	user     = testUser{
 		userID:    42,

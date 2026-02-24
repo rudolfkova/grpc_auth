@@ -3,6 +3,7 @@ package main
 
 import (
 	"chat/internal/app"
+	authclient "chat/internal/client/auth"
 	"chat/internal/config"
 	"chat/internal/service"
 	"context"
@@ -14,6 +15,8 @@ import (
 	"syscall"
 
 	"github.com/BurntSushi/toml"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -36,7 +39,9 @@ func main() {
 
 	chatAPI := service.NewService()
 
-	app := app.New(logger, cfg.BindAddr, chatAPI)
+	authConn, _ := grpc.NewClient(cfg.AuthServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	authClient := authclient.New(authConn)
+	app := app.New(logger, chatAPI, cfg, authClient)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

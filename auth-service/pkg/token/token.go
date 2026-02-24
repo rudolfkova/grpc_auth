@@ -24,11 +24,11 @@ const (
 
 // TokenProvider ...
 type TokenProvider struct {
-	jwtSecret []byte
+	jwtSecret string
 }
 
 // NewTokenProvider ...
-func NewTokenProvider(jwtSecret []byte) TokenProvider {
+func NewTokenProvider(jwtSecret string) TokenProvider {
 	return TokenProvider{
 		jwtSecret: jwtSecret,
 	}
@@ -65,7 +65,7 @@ func (p TokenProvider) CreateAccessToken(userID int, sessionID int, appID int, a
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	accessTokenStr, err := token.SignedString(p.jwtSecret)
+	accessTokenStr, err := token.SignedString([]byte(p.jwtSecret))
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}

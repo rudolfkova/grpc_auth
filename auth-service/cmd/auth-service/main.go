@@ -62,7 +62,7 @@ func main() {
 		sqlstore.NewUserRepository(db),
 		sqlstore.NewSessionRepository(db),
 		cache,
-		tokenjwt.NewTokenProvider([]byte(cfg.JWTSecret)),
+		tokenjwt.NewTokenProvider(cfg.JWTSecret),
 		*logger,
 		cfg.AccessTokenTTL,
 		cfg.RefreshTokenTTL,

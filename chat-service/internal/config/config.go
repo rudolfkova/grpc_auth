@@ -10,6 +10,7 @@ type Config struct {
 	BindAddr        string `toml:"bind_addr"`
 	LogLevel        string `toml:"log_level"`
 	JWTSecret       string `toml:"jwt_secret"`
+	AuthServiceAddr string `toml:"auth_service_addr"`
 }
 
 // NewConfig ...

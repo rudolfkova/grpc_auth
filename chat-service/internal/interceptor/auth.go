@@ -29,7 +29,7 @@ type AccessClaims struct {
 }
 
 // AuthInterceptor ...
-func AuthInterceptor(jwtSecret []byte, authClient *authclient.Client) grpc.UnaryServerInterceptor {
+func AuthInterceptor(jwtSecret string, authClient *authclient.Client) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		_ = info
 		_ = handler
@@ -50,7 +50,7 @@ func AuthInterceptor(jwtSecret []byte, authClient *authclient.Client) grpc.Unary
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, status.Error(codes.Unauthenticated, "unexpected signing method")
 			}
-			return jwtSecret, nil
+			return []byte(jwtSecret), nil
 		})
 		if err != nil || !token.Valid {
 			return nil, status.Error(codes.Unauthenticated, "invalid or expired token")
