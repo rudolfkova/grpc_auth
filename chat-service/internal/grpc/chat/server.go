@@ -44,6 +44,15 @@ func (s *serverAPI) GetOrCreateChat(ctx context.Context, req *chatv1.GetOrCreate
 	)
 	log.Info("GetOrCreateChat")
 
+	userID, ok := ctx.Value(interceptor.UserIDKey).(int)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	if userID != int(req.GetInitiatorId()) {
+		return nil, status.Error(codes.PermissionDenied, "permission denied")
+	}
+
 	chatID, created, createdAt, err := s.chat.GetOrCreateChat(ctx, int(req.GetInitiatorId()), int(req.GetRecipientId()))
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
@@ -114,7 +123,9 @@ func (s *serverAPI) GetUserChats(ctx context.Context, req *chatv1.GetUserChatsRe
 			LastMessageAt: timestamppb.New(*chatPreview[i].LastMessageAt),
 		}
 	}
-	return &chatv1.GetUserChatsResponse{}, nil
+	return &chatv1.GetUserChatsResponse{
+		Chats: chatPreviewDTO,
+	}, nil
 }
 
 // SendMessage ...
