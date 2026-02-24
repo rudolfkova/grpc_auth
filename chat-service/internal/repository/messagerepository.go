@@ -14,6 +14,11 @@ type MessageRepository struct {
 	db *sql.DB
 }
 
+// NewMessageRepository ...
+func NewMessageRepository(db *sql.DB) *MessageRepository {
+	return &MessageRepository{db: db}
+}
+
 // GetMessages ...
 func (r *MessageRepository) GetMessages(ctx context.Context, chatID int, limit int, cursor string) ([]model.MassageDTO, error) {
 	const op = "MessageRepository.GetMessages"
@@ -79,9 +84,15 @@ func (r *MessageRepository) SendMessage(ctx context.Context, chatID int, senderI
 	const op = "MessageRepository.SendMessage"
 
 	const query = `
-		INSERT INTO messages (chat_id, sender_id, text)
-		VALUES ($1, $2, $3)
-		RETURNING id, created_at
+		WITH inserted AS (
+			INSERT INTO messages (chat_id, sender_id, text)
+			VALUES ($1, $2, $3)
+			RETURNING id, created_at
+		)
+		UPDATE chat_members
+		SET unread_count = unread_count + 1
+		WHERE chat_id = $1 AND user_id != $2
+		RETURNING (SELECT id FROM inserted), (SELECT created_at FROM inserted)
 	`
 
 	var (

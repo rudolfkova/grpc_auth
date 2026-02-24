@@ -114,13 +114,18 @@ func (s *serverAPI) GetUserChats(ctx context.Context, req *chatv1.GetUserChatsRe
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 	chatPreviewDTO := make([]*chatv1.ChatPreviewDTO, len(chatPreview))
-	for i := range chatPreviewDTO {
+	for i := range chatPreview {
+		var lastMessageAt *timestamppb.Timestamp
+		if chatPreview[i].LastMessageAt != nil {
+			lastMessageAt = timestamppb.New(*chatPreview[i].LastMessageAt)
+		}
+
 		chatPreviewDTO[i] = &chatv1.ChatPreviewDTO{
 			ChatId:        int64(chatPreview[i].ChatID),
 			CompanionId:   int64(chatPreview[i].CompanionID),
 			LastMessage:   chatPreview[i].LastMessage,
 			UnreadCount:   int64(chatPreview[i].UnreadCount),
-			LastMessageAt: timestamppb.New(*chatPreview[i].LastMessageAt),
+			LastMessageAt: lastMessageAt,
 		}
 	}
 	return &chatv1.GetUserChatsResponse{

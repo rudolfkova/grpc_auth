@@ -31,8 +31,6 @@ type ChatRepository interface {
 	IsMember(ctx context.Context, chatID int, userID int) (bool, error)
 	// GetUserChats ...
 	GetUserChats(ctx context.Context, userID int, limit int, offset int) ([]model.ChatPreviewDTO, error)
-	// IncrementUnread ...
-	IncrementUnread(ctx context.Context, chatID int, senderID int) error
 	// ResetUnread ...
 	ResetUnread(ctx context.Context, chatID int, userID int) error
 }
@@ -102,7 +100,7 @@ func (s *Service) GetUserChats(ctx context.Context, userID int, limit int, offse
 }
 
 // SendMessage ...
-func (s *Service) SendMessage(ctx context.Context, chatID int, senderID int, text string) (massageID int, createdAt time.Time, err error) {
+func (s *Service) SendMessage(ctx context.Context, chatID int, senderID int, text string) (int, time.Time, error) {
 	isMember, err := s.chatRepo.IsMember(ctx, chatID, senderID)
 	if err != nil {
 		return 0, time.Time{}, err
@@ -111,14 +109,5 @@ func (s *Service) SendMessage(ctx context.Context, chatID int, senderID int, tex
 		return 0, time.Time{}, chaterror.ErrPermissionDenied
 	}
 
-	messageID, createdAt, err := s.messageRepo.SendMessage(ctx, chatID, senderID, text)
-	if err != nil {
-		return 0, time.Time{}, err
-	}
-
-	if err := s.chatRepo.IncrementUnread(ctx, chatID, senderID); err != nil {
-		return 0, time.Time{}, err
-	}
-
-	return messageID, createdAt, nil
+	return s.messageRepo.SendMessage(ctx, chatID, senderID, text)
 }

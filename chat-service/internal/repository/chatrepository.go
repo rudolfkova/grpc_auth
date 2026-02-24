@@ -14,6 +14,11 @@ type ChatRepository struct {
 	db *sql.DB
 }
 
+// NewChatRepository ...
+func NewChatRepository(db *sql.DB) *ChatRepository {
+	return &ChatRepository{db: db}
+}
+
 // GetOrCreateChat ...
 func (r *ChatRepository) GetOrCreateChat(ctx context.Context, initiatorID int, recipientID int) (int, bool, time.Time, error) {
 	const op = "ChatRepository.GetOrCreateChat"
