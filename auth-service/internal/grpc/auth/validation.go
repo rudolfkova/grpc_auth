@@ -8,6 +8,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 )
 
+// ValidateRegisterRequest ...
 func ValidateRegisterRequest(req *authv1.RegisterRequest) error {
 	return validation.ValidateStruct(
 		req,

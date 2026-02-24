@@ -4,6 +4,9 @@ package config
 import (
 	"log/slog"
 	"os"
+	"time"
+
+	"github.com/phsym/console-slog"
 )
 
 // NewLogger ...
@@ -14,9 +17,13 @@ func NewLogger(config *Config) *slog.Logger {
 		lvl.Set(slog.LevelInfo)
 	}
 
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: &lvl,
-	})
+	handler := console.NewHandler(
+		os.Stderr,
+		&console.HandlerOptions{
+			Level:      slog.LevelDebug,
+			TimeFormat: time.TimeOnly,
+		},
+	)
 
 	return slog.New(handler)
 }

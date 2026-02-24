@@ -34,10 +34,10 @@ gen-auth:
 	  --go-grpc_out=auth-service --go-grpc_opt=paths=source_relative \
 	  auth-service/proto/auth/v1/auth.proto
 gen-chat:
-	protoc -I auth-service \
+	protoc -I chat-service \
 	  --go_out=chat-service --go_opt=paths=source_relative \
 	  --go-grpc_out=chat-service --go-grpc_opt=paths=source_relative \
-	  chat-service/proto/auth/v1/auth.proto
+	  chat-service/proto/chat/v1/chat.proto
 
 # go mod tidy по сервисам.
 .PHONY: tidy
