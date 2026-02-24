@@ -9,10 +9,10 @@ import (
 
 // Client ...
 type Client struct {
-	Api authv1.AuthServiceClient
+	API authv1.AuthServiceClient
 }
 
 // New ...
 func New(conn *grpc.ClientConn) *Client {
-	return &Client{Api: authv1.NewAuthServiceClient(conn)}
+	return &Client{API: authv1.NewAuthServiceClient(conn)}
 }

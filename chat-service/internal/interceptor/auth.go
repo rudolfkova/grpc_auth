@@ -57,7 +57,7 @@ func AuthInterceptor(jwtSecret string, authClient *authclient.Client) grpc.Unary
 		}
 
 		// 3. Проверяем, активна ли сессия в auth-сервисе (пользователь не разлогинился)
-		resp, err := authClient.Api.ValidateSession(ctx, &authv1.ValidateSessionRequest{
+		resp, err := authClient.API.ValidateSession(ctx, &authv1.ValidateSessionRequest{
 			SessionId: int64(claims.SessionID),
 		})
 		if err != nil || !resp.GetActive() {

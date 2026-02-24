@@ -4,6 +4,8 @@ build-auth:
 	go build -v ./auth-service/cmd/auth-service
 build-chat:
 	go build -v ./chat-service/cmd/chat-service
+build-gateway:
+	go build -v -o gateway.exe ./gateway/cmd/gateway
 
 # Запуск сервисов.
 .PHONY: start
@@ -11,6 +13,8 @@ start-auth:
 	./auth-service.exe -config-path=config.toml
 start-chat:
 	./chat-service.exe -config-path=config-chat.toml
+start-gateway:
+	./gateway.exe -config-path=config-gateway.toml
 
 # Линтер сервисов.
 .PHONY: lint
@@ -45,6 +49,8 @@ tidy-auth:
 	cd auth-service && go mod tidy
 tidy-chat:
 	cd chat-service && go mod tidy
+tidy-gateway:
+	cd gateway && go mod tidy
 
 # Форматирование всего репозитория.
 .PHONY: gofmt
