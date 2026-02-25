@@ -78,6 +78,7 @@
     transition: background 0.3s;
   }
   .status-dot.connected { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .status-dot.ws { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
 
   .user-info {
     font-size: 11px;
@@ -998,6 +999,7 @@ function onAuthSuccess(data) {
   updateTokenPanel();
   showChatUI();
   loadUserChats();
+  wsConnect();
 }
 
 // ── LOGOUT ────────────────────────────────────────────────────────────
@@ -1013,6 +1015,7 @@ async function logout() {
 }
 
 function resetState() {
+  wsDisconnect();
   Object.assign(state, {
     accessToken: null, refreshToken: null,
     accessExpiresAt: null, refreshExpiresAt: null,
@@ -1273,13 +1276,120 @@ function escapeHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// ── WEBSOCKET ─────────────────────────────────────────────────────────
+let ws = null;
+let wsReconnectTimer = null;
+let wsReconnectDelay = 1000; // ms, растёт при повторных ошибках
+
+function wsUrl() {
+  return api().replace(/^http/, 'ws') + '/ws/subscribe';
+}
+
+function wsSetStatus(status) {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  dot.className = 'status-dot';
+  if (status === 'ws') {
+    dot.classList.add('ws');
+    text.textContent = 'ws connected';
+  } else if (status === 'connected') {
+    dot.classList.add('connected');
+    text.textContent = 'connected';
+  } else {
+    text.textContent = status;
+  }
+}
+
+function wsConnect() {
+  if (!state.accessToken) return;
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+
+  // JWT передаём через query param — браузерный WebSocket не поддерживает
+  // кастомные заголовки, это стандартный обходной путь
+  const url = wsUrl() + '?token=' + encodeURIComponent(state.accessToken);
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    wsSetStatus('ws');
+    wsReconnectDelay = 1000;
+    clearTimeout(wsReconnectTimer);
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      onWsMessage(msg);
+    } catch (e) {
+      console.error('ws parse error', e);
+    }
+  };
+
+  ws.onerror = () => {
+    wsSetStatus('connected');
+  };
+
+  ws.onclose = () => {
+    wsSetStatus('connected');
+    // Переподключаемся с экспоненциальной задержкой если залогинены
+    if (state.accessToken) {
+      wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
+      wsReconnectTimer = setTimeout(wsConnect, wsReconnectDelay);
+    }
+  };
+}
+
+function wsDisconnect() {
+  clearTimeout(wsReconnectTimer);
+  if (ws) {
+    ws.onclose = null; // предотвращаем авто-реконнект при логауте
+    ws.close();
+    ws = null;
+  }
+}
+
+// Обработка входящего сообщения через WebSocket
+function onWsMessage(msg) {
+  // Обновляем сайдбар — меняем превью и время для нужного чата
+  const chatIndex = state.chats.findIndex(c => c.chat_id === msg.chat_id);
+  if (chatIndex !== -1) {
+    const chat = state.chats[chatIndex];
+    chat.last_message = msg.text;
+    chat.last_message_at = msg.created_at;
+    // Инкрементируем unread только если это не наш чат и не мы отправили
+    if (msg.chat_id !== state.currentChatID && msg.sender_id !== state.userID) {
+      chat.unread_count = (chat.unread_count || 0) + 1;
+    }
+    // Поднимаем чат наверх списка
+    state.chats.splice(chatIndex, 1);
+    state.chats.unshift(chat);
+    renderChatList();
+  } else {
+    // Новый чат — перезагружаем список
+    loadUserChats();
+  }
+
+  // Если сообщение пришло в открытый чат — добавляем его
+  if (msg.chat_id === state.currentChatID) {
+    // Не дублируем своё сообщение — оно уже добавлено оптимистично
+    if (msg.sender_id !== state.userID) {
+      appendMessage(msg);
+      const area = document.getElementById('messagesArea');
+      area.scrollTop = area.scrollHeight;
+    }
+  }
+}
+
 // ── AUTO REFRESH ──────────────────────────────────────────────────────
 setInterval(() => {
   if (!state.accessToken || !state.accessExpiresAt) return;
   const diff = (new Date(state.accessExpiresAt) - new Date()) / 1000;
   if (diff < 60 && diff > 0) {
     toast('Access token expiring soon — refreshing...', 'info');
-    refreshToken();
+    refreshToken().then(() => {
+      // После рефреша переподключаем WS с новым токеном
+      wsDisconnect();
+      wsConnect();
+    });
   }
   updateTokenPanel();
 }, 30000);

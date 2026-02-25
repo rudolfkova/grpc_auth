@@ -27,6 +27,9 @@ func New(log *slog.Logger, port string, auth chat.Chat, cfg *config.Config, auth
 		grpc.UnaryInterceptor(
 			interceptor.AuthInterceptor(cfg.JWTSecret, authClient),
 		),
+		grpc.StreamInterceptor(
+			interceptor.AuthStreamInterceptor(cfg.JWTSecret, authClient),
+		),
 	)
 	chat.Register(gRPCServer, auth, hub, log)
 

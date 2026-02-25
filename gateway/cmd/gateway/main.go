@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"google.golang.org/grpc"
@@ -46,7 +47,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect to auth-service: %v", err)
 	}
-	defer authConn.Close()
+	defer func() {
+		if err := authConn.Close(); err != nil {
+			logger.Error("conn close with error", slog.String("error", err.Error()))
+		}
+	}()
 
 	chatConn, err := grpc.NewClient(
 		cfg.ChatServiceAddr,
@@ -55,10 +60,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect to chat-service: %v", err)
 	}
-	defer chatConn.Close()
+	defer func() {
+		if err := chatConn.Close(); err != nil {
+			logger.Error("conn close with error", slog.String("error", err.Error()))
+		}
+	}()
 
 	authHandler := handler.NewAuthHandler(authv1.NewAuthServiceClient(authConn))
 	chatHandler := handler.NewChatHandler(chatv1.NewChatServiceClient(chatConn))
+	wsHandler := handler.NewWSHandler(chatv1.NewChatServiceClient(chatConn), logger)
 
 	mux := http.NewServeMux()
 
@@ -74,11 +84,14 @@ func main() {
 	mux.HandleFunc("GET /chat/messages", chatHandler.GetMessages)
 	mux.HandleFunc("GET /chat/chats", chatHandler.GetUserChats)
 	mux.HandleFunc("POST /chat/send", chatHandler.SendMessage)
+	mux.HandleFunc("GET /ws/subscribe", wsHandler.Subscribe)
 
 	// Health
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+			logger.Error("write health response", slog.String("error", err.Error()))
+		}
 	})
 
 	srv := &http.Server{
@@ -86,6 +99,7 @@ func main() {
 		Handler: middleware.CORS(
 			middleware.Logger(logger, mux),
 		),
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	logger.Info("gateway starting",

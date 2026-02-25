@@ -20,10 +20,11 @@ type Service struct {
 }
 
 // NewService ...
-func NewService(chatRepo ChatRepository, messageRepo MessageRepository) *Service {
+func NewService(chatRepo ChatRepository, messageRepo MessageRepository, hub Hub) *Service {
 	return &Service{
 		chatRepo:    chatRepo,
 		messageRepo: messageRepo,
+		hub:         hub,
 	}
 }
 

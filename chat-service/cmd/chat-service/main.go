@@ -54,12 +54,13 @@ func main() {
 	chatRepo := repository.NewChatRepository(db.DB)
 	messageRepo := repository.NewMessageRepository(db.DB)
 
-	chatAPI := service.NewService(chatRepo, messageRepo)
+	hub := hub.New()
+
+	chatAPI := service.NewService(chatRepo, messageRepo, hub)
 
 	authConn, _ := grpc.NewClient(cfg.AuthServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	authClient := authclient.New(authConn)
 
-	hub := hub.New()
 	app := app.New(logger, chatAPI, cfg, authClient, hub)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

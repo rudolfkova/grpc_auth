@@ -69,3 +69,56 @@ func AuthInterceptor(jwtSecret string, authClient *authclient.Client) grpc.Unary
 		return handler(ctx, req)
 	}
 }
+
+// AuthStreamInterceptor — то же самое что AuthInterceptor, но для стриминговых методов.
+func AuthStreamInterceptor(jwtSecret string, authClient *authclient.Client) grpc.StreamServerInterceptor {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		_ = info
+		_ = handler
+		// 1. Достаём токен из метаданных
+		md, ok := metadata.FromIncomingContext(ss.Context())
+		if !ok {
+			return status.Error(codes.Unauthenticated, "missing metadata")
+		}
+		vals := md.Get("authorization")
+		if len(vals) == 0 {
+			return status.Error(codes.Unauthenticated, "missing authorization header")
+		}
+		tokenStr := strings.TrimPrefix(vals[0], "Bearer ")
+
+		// 2. Парсим и валидируем JWT
+		claims := &AccessClaims{}
+		token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, status.Error(codes.Unauthenticated, "unexpected signing method")
+			}
+			return []byte(jwtSecret), nil
+		})
+		if err != nil || !token.Valid {
+			return status.Error(codes.Unauthenticated, "invalid or expired token")
+		}
+
+		// 3. Проверяем сессию
+		resp, err := authClient.API.ValidateSession(ss.Context(), &authv1.ValidateSessionRequest{
+			SessionId: int64(claims.SessionID),
+		})
+		if err != nil || !resp.GetActive() {
+			return status.Error(codes.Unauthenticated, "session is not active")
+		}
+
+		// 4. Кладём user_id в контекст через обёртку стрима
+		wrapped := &wrappedStream{ss, context.WithValue(ss.Context(), UserIDKey, claims.UserID)}
+		return handler(srv, wrapped)
+	}
+}
+
+// wrappedStream позволяет подменить контекст у ServerStream.
+type wrappedStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+// Context ...
+func (w *wrappedStream) Context() context.Context {
+	return w.ctx
+}
