@@ -2,6 +2,7 @@
 package chat
 
 import (
+	"chat/internal/grpc/hub"
 	"chat/internal/interceptor"
 	"chat/internal/model"
 	chatv1 "chat/proto/chat/v1"
@@ -27,11 +28,12 @@ type serverAPI struct {
 	chatv1.UnimplementedChatServiceServer
 	chat   Chat
 	logger *slog.Logger
+	hub    *hub.Hub
 }
 
 // Register ...
-func Register(gRPCServer *grpc.Server, chat Chat, logger *slog.Logger) {
-	chatv1.RegisterChatServiceServer(gRPCServer, &serverAPI{chat: chat, logger: logger})
+func Register(gRPCServer *grpc.Server, chat Chat, hub *hub.Hub, logger *slog.Logger) {
+	chatv1.RegisterChatServiceServer(gRPCServer, &serverAPI{chat: chat, hub: hub, logger: logger})
 }
 
 // Ниже бизнес логика сервиса, rpc методы.
@@ -159,4 +161,19 @@ func (s *serverAPI) SendMessage(ctx context.Context, req *chatv1.SendMessageRequ
 		MessageId: int64(massageID),
 		CreatedAt: timestamppb.New(createdAt),
 	}, nil
+}
+
+// Subscribe ...
+func (s *serverAPI) Subscribe(_ *chatv1.SubscribeRequest, stream chatv1.ChatService_SubscribeServer) error {
+	userID, ok := stream.Context().Value(interceptor.UserIDKey).(int)
+	if !ok {
+		return status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	s.hub.Subscribe(userID, stream)
+	defer s.hub.Unsubscribe(userID, stream)
+
+	// Держим стрим открытым пока клиент не отключится
+	<-stream.Context().Done()
+	return nil
 }

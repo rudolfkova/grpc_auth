@@ -23,6 +23,7 @@ const (
 	ChatService_GetMessages_FullMethodName     = "/chat.v1.ChatService/GetMessages"
 	ChatService_GetUserChats_FullMethodName    = "/chat.v1.ChatService/GetUserChats"
 	ChatService_SendMessage_FullMethodName     = "/chat.v1.ChatService/SendMessage"
+	ChatService_Subscribe_FullMethodName       = "/chat.v1.ChatService/Subscribe"
 )
 
 // ChatServiceClient is the client API for ChatService service.
@@ -37,6 +38,9 @@ type ChatServiceClient interface {
 	GetUserChats(ctx context.Context, in *GetUserChatsRequest, opts ...grpc.CallOption) (*GetUserChatsResponse, error)
 	// Отправить сообщение (вызывается внутри сервиса после WebSocket)
 	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error)
+	// Subscribe открывает стрим — сервер пушит новые сообщения
+	// из всех чатов авторизованного пользователя.
+	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[MessageDTO], error)
 }
 
 type chatServiceClient struct {
@@ -87,6 +91,25 @@ func (c *chatServiceClient) SendMessage(ctx context.Context, in *SendMessageRequ
 	return out, nil
 }
 
+func (c *chatServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[MessageDTO], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ChatService_ServiceDesc.Streams[0], ChatService_Subscribe_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SubscribeRequest, MessageDTO]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ChatService_SubscribeClient = grpc.ServerStreamingClient[MessageDTO]
+
 // ChatServiceServer is the server API for ChatService service.
 // All implementations must embed UnimplementedChatServiceServer
 // for forward compatibility.
@@ -99,6 +122,9 @@ type ChatServiceServer interface {
 	GetUserChats(context.Context, *GetUserChatsRequest) (*GetUserChatsResponse, error)
 	// Отправить сообщение (вызывается внутри сервиса после WebSocket)
 	SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error)
+	// Subscribe открывает стрим — сервер пушит новые сообщения
+	// из всех чатов авторизованного пользователя.
+	Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[MessageDTO]) error
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -120,6 +146,9 @@ func (UnimplementedChatServiceServer) GetUserChats(context.Context, *GetUserChat
 }
 func (UnimplementedChatServiceServer) SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SendMessage not implemented")
+}
+func (UnimplementedChatServiceServer) Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[MessageDTO]) error {
+	return status.Error(codes.Unimplemented, "method Subscribe not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 func (UnimplementedChatServiceServer) testEmbeddedByValue()                     {}
@@ -214,6 +243,17 @@ func _ChatService_SendMessage_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ChatService_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ChatServiceServer).Subscribe(m, &grpc.GenericServerStream[SubscribeRequest, MessageDTO]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ChatService_SubscribeServer = grpc.ServerStreamingServer[MessageDTO]
+
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -238,6 +278,12 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ChatService_SendMessage_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Subscribe",
+			Handler:       _ChatService_Subscribe_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "proto/chat/v1/chat.proto",
 }

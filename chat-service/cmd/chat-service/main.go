@@ -5,6 +5,7 @@ import (
 	"chat/internal/app"
 	authclient "chat/internal/client/auth"
 	"chat/internal/config"
+	"chat/internal/grpc/hub"
 	"chat/internal/repository"
 	"chat/internal/repository/sqlstore"
 	"chat/internal/service"
@@ -57,7 +58,9 @@ func main() {
 
 	authConn, _ := grpc.NewClient(cfg.AuthServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	authClient := authclient.New(authConn)
-	app := app.New(logger, chatAPI, cfg, authClient)
+
+	hub := hub.New()
+	app := app.New(logger, chatAPI, cfg, authClient, hub)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

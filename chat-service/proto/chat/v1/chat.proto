@@ -18,7 +18,14 @@ service ChatService {
 
   // Отправить сообщение (вызывается внутри сервиса после WebSocket)
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+
+  // Subscribe открывает стрим — сервер пушит новые сообщения
+  // из всех чатов авторизованного пользователя.
+  rpc Subscribe(SubscribeRequest) returns (stream MessageDTO);
 }
+
+// SubscribeRequest
+message SubscribeRequest {}
 
 // GetOrCreateChat
 message GetOrCreateChatRequest {
