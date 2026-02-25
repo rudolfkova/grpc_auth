@@ -2,7 +2,10 @@
 package grpcapp
 
 import (
-	grpcauth "auth/internal/grpc/auth"
+	authclient "chat/internal/client/auth"
+	"chat/internal/config"
+	"chat/internal/grpc/chat"
+	"chat/internal/interceptor"
 	"fmt"
 	"log/slog"
 	"net"
@@ -18,9 +21,13 @@ type App struct {
 }
 
 // New ...
-func New(log *slog.Logger, port string, auth grpcauth.Auth) *App {
-	gRPCServer := grpc.NewServer()
-	grpcauth.Register(gRPCServer, auth, log)
+func New(log *slog.Logger, port string, auth chat.Chat, cfg *config.Config, authClient *authclient.Client) *App {
+	gRPCServer := grpc.NewServer(
+		grpc.UnaryInterceptor(
+			interceptor.AuthInterceptor(cfg.JWTSecret, authClient),
+		),
+	)
+	chat.Register(gRPCServer, auth, log)
 
 	return &App{
 		logger:     log,

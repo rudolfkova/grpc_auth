@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	domain "auth/internal/domain"
+	tokenjwt "auth/pkg/token"
 	context "context"
 
 	mock "github.com/stretchr/testify/mock"
@@ -43,22 +43,22 @@ func (_m *Auth) IsAdmin(ctx context.Context, userID int) (bool, error) {
 }
 
 // Login provides a mock function with given fields: ctx, email, password, appID
-func (_m *Auth) Login(ctx context.Context, email string, password string, appID int) (domain.Token, error) {
+func (_m *Auth) Login(ctx context.Context, email string, password string, appID int) (tokenjwt.Token, error) {
 	ret := _m.Called(ctx, email, password, appID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Login")
 	}
 
-	var r0 domain.Token
+	var r0 tokenjwt.Token
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) (domain.Token, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) (tokenjwt.Token, error)); ok {
 		return rf(ctx, email, password, appID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) domain.Token); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) tokenjwt.Token); ok {
 		r0 = rf(ctx, email, password, appID)
 	} else {
-		r0 = ret.Get(0).(domain.Token)
+		r0 = ret.Get(0).(tokenjwt.Token)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string, string, int) error); ok {
@@ -99,22 +99,22 @@ func (_m *Auth) Logout(ctx context.Context, refreshToken string) (bool, error) {
 }
 
 // RefreshToken provides a mock function with given fields: ctx, refreshToken
-func (_m *Auth) RefreshToken(ctx context.Context, refreshToken string) (domain.Token, error) {
+func (_m *Auth) RefreshToken(ctx context.Context, refreshToken string) (tokenjwt.Token, error) {
 	ret := _m.Called(ctx, refreshToken)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RefreshToken")
 	}
 
-	var r0 domain.Token
+	var r0 tokenjwt.Token
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (domain.Token, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (tokenjwt.Token, error)); ok {
 		return rf(ctx, refreshToken)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) domain.Token); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) tokenjwt.Token); ok {
 		r0 = rf(ctx, refreshToken)
 	} else {
-		r0 = ret.Get(0).(domain.Token)
+		r0 = ret.Get(0).(tokenjwt.Token)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {

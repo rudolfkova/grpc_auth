@@ -2,12 +2,13 @@
 package grpcauth
 
 import (
-	"auth/internal/domain"
 	"auth/internal/repository"
+	tokenjwt "auth/pkg/token"
 	authv1 "auth/proto/auth/v1"
 	"auth/provider"
 	"context"
 	"errors"
+	"log/slog"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -18,21 +19,22 @@ import (
 // Auth ...
 type Auth interface {
 	Register(ctx context.Context, email string, password string) (userID int, err error)
-	Login(ctx context.Context, email string, password string, appID int) (token domain.Token, err error)
+	Login(ctx context.Context, email string, password string, appID int) (token tokenjwt.Token, err error)
 	IsAdmin(ctx context.Context, userID int) (isAdmin bool, err error)
 	Logout(ctx context.Context, refreshToken string) (success bool, err error)
-	RefreshToken(ctx context.Context, refreshToken string) (token domain.Token, err error)
+	RefreshToken(ctx context.Context, refreshToken string) (token tokenjwt.Token, err error)
 	ValidateSession(ctx context.Context, sessionID int) (active bool, err error)
 }
 
 type serverAPI struct {
 	authv1.UnimplementedAuthServiceServer
-	auth Auth
+	auth   Auth
+	logger *slog.Logger
 }
 
 // Register ...
-func Register(gRPCServer *grpc.Server, auth Auth) {
-	authv1.RegisterAuthServiceServer(gRPCServer, &serverAPI{auth: auth})
+func Register(gRPCServer *grpc.Server, auth Auth, log *slog.Logger) {
+	authv1.RegisterAuthServiceServer(gRPCServer, &serverAPI{auth: auth, logger: log})
 }
 
 // Ниже бизнес логика сервиса, rpc методы.
@@ -42,7 +44,7 @@ func (s *serverAPI) Register(ctx context.Context, req *authv1.RegisterRequest) (
 	if err := ValidateRegisterRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "internal error")
 	}
-	
+
 	userID, err := s.auth.Register(ctx, req.GetEmail(), req.GetPassword())
 	if err != nil {
 		if errors.Is(err, repository.ErrUserAlreadyExists) {
@@ -66,6 +68,7 @@ func (s *serverAPI) Login(ctx context.Context, req *authv1.LoginRequest) (*authv
 		if errors.Is(err, repository.ErrInvalidCredentials) {
 			return nil, status.Error(codes.Unauthenticated, "wrong email or password")
 		}
+		s.logger.Warn(err.Error())
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 
@@ -130,9 +133,9 @@ func (s *serverAPI) RefreshToken(ctx context.Context, req *authv1.RefreshTokenRe
 
 // ValidateSession ...
 func (s *serverAPI) ValidateSession(ctx context.Context, req *authv1.ValidateSessionRequest) (*authv1.ValidateSessionResponse, error) {
+
 	active, err := s.auth.ValidateSession(ctx, int(req.GetSessionId()))
 	if err != nil {
-		// если хочешь заморочиться, можешь маппить ошибки по‑красивому
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 

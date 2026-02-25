@@ -1,3 +1,5 @@
 go 1.25.4
 
 use ./auth-service
+use ./chat-service
+use ./gateway
