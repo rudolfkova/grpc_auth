@@ -4,7 +4,10 @@ package chaterror
 import "errors"
 
 var (
-	ErrUnauthenticated  = errors.New("unauthenticated")
+	// ErrUnauthenticated ...
+	ErrUnauthenticated = errors.New("unauthenticated")
+	// ErrPermissionDenied ...
 	ErrPermissionDenied = errors.New("permission denied")
-	ErrChatNotFound     = errors.New("chat not found")
+	// ErrChatNotFound ...
+	ErrChatNotFound = errors.New("chat not found")
 )

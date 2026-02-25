@@ -5,6 +5,7 @@ import (
 	authclient "chat/internal/client/auth"
 	"chat/internal/config"
 	"chat/internal/grpc/chat"
+	"chat/internal/grpc/hub"
 	"chat/internal/interceptor"
 	"fmt"
 	"log/slog"
@@ -21,13 +22,13 @@ type App struct {
 }
 
 // New ...
-func New(log *slog.Logger, port string, auth chat.Chat, cfg *config.Config, authClient *authclient.Client) *App {
+func New(log *slog.Logger, port string, auth chat.Chat, cfg *config.Config, authClient *authclient.Client, hub *hub.Hub) *App {
 	gRPCServer := grpc.NewServer(
 		grpc.UnaryInterceptor(
 			interceptor.AuthInterceptor(cfg.JWTSecret, authClient),
 		),
 	)
-	chat.Register(gRPCServer, auth, log)
+	chat.Register(gRPCServer, auth, hub, log)
 
 	return &App{
 		logger:     log,

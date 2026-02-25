@@ -175,3 +175,19 @@ func (r *ChatRepository) ResetUnread(ctx context.Context, chatID int, userID int
 
 	return nil
 }
+
+// GetParticipants ...
+func (r *ChatRepository) GetParticipants(ctx context.Context, chatID int) (user1ID int, user2ID int, err error) {
+	const op = "ChatRepository.GetParticipants"
+
+	const query = `
+        SELECT user1_id, user2_id FROM chats WHERE id = $1
+    `
+
+	err = r.db.QueryRowContext(ctx, query, chatID).Scan(&user1ID, &user2ID)
+	if err != nil {
+		return 0, 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return user1ID, user2ID, nil
+}
