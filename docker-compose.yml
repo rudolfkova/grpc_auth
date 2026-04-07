@@ -111,6 +111,17 @@ services:
     ports:
       - "8080:8080"
 
+  game-service:
+    build:
+      context: ./game-service
+      dockerfile: Dockerfile
+    container_name: grpc-game-service
+    command: ["-config-path", "/configs/config-game.toml"]
+    volumes:
+      - ./deploy/docker/config-game.toml:/configs/config-game.toml:ro
+    ports:
+      - "50053:50053"
+
 volumes:
   postgres-data:
   redis-data:

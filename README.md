@@ -9,6 +9,7 @@
 | **auth-service** | Регистрация, логин, JWT + refresh токены, сессии | `:50051` |
 | **chat-service** | Чаты, сообщения, real-time push через gRPC stream | `:50052` |
 | **gateway** | REST HTTP + WebSocket фасад над gRPC сервисами | `:8080` |
+| **game-service** | Игровой loop (MVP skeleton: action queue + snapshot) | `:50053` |
 Порты можно менять в конфигах. В будущем планируется перенос из .toml в .env чтобы было проще деплоить.
 
 ## Стек
@@ -58,6 +59,7 @@ make DOCKER=docker docker-up
 - Gateway: `http://localhost:8080`
 - Auth gRPC: `localhost:50051`
 - Chat gRPC: `localhost:50052`
+- Game gRPC/internal: `localhost:50053`
 
 `postgres` и `redis` в docker-compose доступны только внутри docker-сети (без проброса портов на хост), чтобы не конфликтовать с локальными инстансами.
 
@@ -90,11 +92,13 @@ make migrate-chat-up DB_DSN="postgres://..."
 
 # Сборка
 make build-auth && make build-chat && make build-gateway
+make build-game
 
-# Запуск (три терминала)
+# Запуск (четыре терминала)
 make start-auth
 make start-chat
 make start-gateway
+make start-game
 ```
 
 Конфигурация через `config.toml`, `config-chat.toml`, `config-gateway.toml`.
@@ -320,6 +324,69 @@ make start-gateway
   "sender_id": 1,
   "text": "hello",
   "created_at": "2026-04-07T21:11:00Z"
+}
+```
+
+---
+
+## Game WS Contract (MVP)
+
+Контракт для игрового клиента (через gateway multiplex). Это спецификация для интеграции; серверная маршрутизация будет добавляться поэтапно.
+
+### Envelope (клиент -> gateway)
+
+```json
+{
+  "service": "game",
+  "type": "move",
+  "payload": {
+    "dx": 1,
+    "dy": 0
+  }
+}
+```
+
+Поля:
+- `service`: всегда `"game"` для игровых событий
+- `type`: тип действия (`"move"` для MVP)
+- `payload`: данные действия
+
+### Move payload
+
+```json
+{
+  "dx": 1,
+  "dy": 0
+}
+```
+
+Ограничения MVP:
+- `dx`, `dy` целые числа
+- клиент отправляет только **intent**, не финальные координаты
+
+### Snapshot (сервер -> клиент)
+
+```json
+{
+  "service": "game",
+  "type": "state",
+  "payload": {
+    "players": [
+      { "id": 1, "x": 10, "y": 12 }
+    ]
+  }
+}
+```
+
+### Error (сервер -> клиент)
+
+```json
+{
+  "service": "game",
+  "type": "error",
+  "payload": {
+    "message": "invalid move payload"
+  }
 }
 ```
 

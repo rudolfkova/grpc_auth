@@ -1,5 +1,5 @@
 # Сборка сервисов.
-.PHONY: build build-auth build-chat build-gateway start start-auth start-chat start-gateway docker-up docker-down docker-logs docker-reset docker-fix-iptables
+.PHONY: build build-auth build-chat build-gateway build-game start start-auth start-chat start-gateway start-game docker-up docker-down docker-logs docker-reset docker-fix-iptables
 ifeq ($(OS),Windows_NT)
 	BIN_EXT := .exe
 else
@@ -14,6 +14,8 @@ build-chat:
 	go build -v -o $(BIN_DIR)/chat-service$(BIN_EXT) ./chat-service/cmd/chat-service
 build-gateway:
 	go build -v -o $(BIN_DIR)/gateway$(BIN_EXT) ./gateway/cmd/gateway
+build-game:
+	go build -v -o $(BIN_DIR)/game-service$(BIN_EXT) ./game-service/cmd/game-service
 
 # Запуск сервисов.
 .PHONY: start
@@ -23,6 +25,8 @@ start-chat:
 	$(BIN_DIR)/chat-service$(BIN_EXT) -config-path=config-chat.toml
 start-gateway:
 	$(BIN_DIR)/gateway$(BIN_EXT) -config-path=config-gateway.toml
+start-game:
+	$(BIN_DIR)/game-service$(BIN_EXT) -config-path=config-game.toml
 
 # Docker-compose.
 docker-up:
@@ -80,6 +84,8 @@ tidy-chat:
 	cd chat-service && go mod tidy
 tidy-gateway:
 	cd gateway && go mod tidy
+tidy-game:
+	cd game-service && go mod tidy
 
 # Форматирование всего репозитория.
 .PHONY: gofmt

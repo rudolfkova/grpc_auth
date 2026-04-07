@@ -5,6 +5,7 @@ COPY go.work ./
 COPY auth-service/go.mod auth-service/go.sum ./auth-service/
 COPY chat-service/go.mod chat-service/go.sum ./chat-service/
 COPY gateway/go.mod gateway/go.sum ./gateway/
+COPY game-service/go.mod ./game-service/
 RUN go work sync && cd chat-service && go mod download
 
 COPY auth-service ./auth-service
