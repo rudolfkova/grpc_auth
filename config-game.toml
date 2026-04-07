@@ -2,3 +2,4 @@ bind_addr = ":50053"
 log_level = "DEBUG"
 tick_rate = "50ms"
 queue_size = 1024
+jwt_secret = "123"

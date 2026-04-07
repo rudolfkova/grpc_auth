@@ -8,6 +8,7 @@ type Config struct {
 	LogLevel  string        `toml:"log_level"`
 	TickRate  time.Duration `toml:"tick_rate"`
 	QueueSize int           `toml:"queue_size"`
+	JWTSecret string        `toml:"jwt_secret"`
 }
 
 // NewConfig returns defaults for local/dev.
@@ -17,5 +18,6 @@ func NewConfig() *Config {
 		LogLevel:  "info",
 		TickRate:  50 * time.Millisecond,
 		QueueSize: 1024,
+		JWTSecret: "123",
 	}
 }

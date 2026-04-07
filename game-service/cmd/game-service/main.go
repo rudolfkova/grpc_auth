@@ -4,13 +4,15 @@ import (
 	"context"
 	"flag"
 	"log"
-	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	gameapp "game/internal/app/game"
 	"game/internal/config"
-	"game/internal/game"
+	domain "game/internal/domain/game"
+	gamews "game/internal/ports/ws/game"
 
 	"github.com/BurntSushi/toml"
 )
@@ -30,23 +32,23 @@ func main() {
 	}
 
 	logger := config.NewLogger(cfg)
-	engine := game.NewEngine(logger, cfg.TickRate, cfg.QueueSize)
-
-	// Seed one action to validate end-to-end loop on startup.
-	engine.EnqueueAction(game.Action{PlayerID: 1, Type: "move", DX: 1, DY: 0})
+	engine := domain.NewEngine()
+	app := gameapp.NewService(engine, cfg.TickRate, cfg.QueueSize)
+	wsHandler := gamews.NewHandler(logger, cfg.JWTSecret, app)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go engine.Run(ctx)
+	go app.Run(ctx)
 
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Info("shutdown signal received")
-			return
-		case s := <-engine.Events():
-			logger.Debug("snapshot", slog.Int("players", len(s.Players)))
-		}
+	mux := http.NewServeMux()
+	mux.Handle("/ws/game", wsHandler)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	if err := gamews.Serve(ctx, logger, cfg.BindAddr, mux); err != nil {
+		log.Fatalf("game-service server: %v", err)
 	}
 }

@@ -106,6 +106,8 @@ services:
         condition: service_started
       chat-service:
         condition: service_started
+      game-service:
+        condition: service_started
     volumes:
       - ./deploy/docker/config-gateway.toml:/configs/config-gateway.toml:ro
     ports:

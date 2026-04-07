@@ -9,7 +9,7 @@
 | **auth-service** | Регистрация, логин, JWT + refresh токены, сессии | `:50051` |
 | **chat-service** | Чаты, сообщения, real-time push через gRPC stream | `:50052` |
 | **gateway** | REST HTTP + WebSocket фасад над gRPC сервисами | `:8080` |
-| **game-service** | Игровой loop (MVP skeleton: action queue + snapshot) | `:50053` |
+| **game-service** | Игровой loop + WS обработка intents/snapshots | `:50053` |
 Порты можно менять в конфигах. В будущем планируется перенос из .toml в .env чтобы было проще деплоить.
 
 ## Стек
@@ -331,7 +331,20 @@ make start-game
 
 ## Game WS Contract (MVP)
 
-Контракт для игрового клиента (через gateway multiplex). Это спецификация для интеграции; серверная маршрутизация будет добавляться поэтапно.
+Контракт для игрового клиента через gateway. Gateway здесь выступает только WS-прокси, вся игровая логика выполняется в `game-service`.
+
+Текущий endpoint:
+
+- `GET /ws/game?token=<access_token>`
+- Пример: `ws://localhost:8080/ws/game?token=<access_token>`
+
+Внутренний pipeline в `game-service`:
+
+1. Порт WS параллельно принимает клиентские события.
+2. На каждом тике порт батчит события и валидирует их.
+3. Батч передаётся в игровой движок (`ProcessTick(actions)`).
+4. Движок возвращает snapshot состояния.
+5. Порт рассылает snapshot всем подписанным клиентам.
 
 ### Envelope (клиент -> gateway)
 
@@ -419,9 +432,9 @@ make start-game
 
 1. `POST /auth/register` (один раз) или сразу `POST /auth/login`
 2. Сохранить `access_token` и `refresh_token`
-3. Открыть WS: `/ws/subscribe?token=<access_token>`
-4. Создавать/получать чат: `POST /chat/get-or-create`
-5. Отправлять сообщения: `POST /chat/send`
-6. Подтягивать историю: `GET /chat/messages`
+3. Открыть chat WS: `/ws/subscribe?token=<access_token>`
+4. Открыть game WS: `/ws/game?token=<access_token>`
+5. Для игры отправлять `{"service":"game","type":"move","payload":{"dx":...,"dy":...}}`
+6. Для чата использовать REST: `POST /chat/send`, `GET /chat/messages`, `GET /chat/chats`
 7. При `401` делать `POST /auth/refresh` и повторять запрос
 8. При выходе пользователя: `POST /auth/logout`

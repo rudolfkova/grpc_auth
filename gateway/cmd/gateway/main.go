@@ -69,6 +69,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(authv1.NewAuthServiceClient(authConn))
 	chatHandler := handler.NewChatHandler(chatv1.NewChatServiceClient(chatConn))
 	wsHandler := handler.NewWSHandler(chatv1.NewChatServiceClient(chatConn), logger)
+	gameWSHandler := handler.NewGameWSHandler(logger, cfg.GameServiceAddr)
 
 	mux := http.NewServeMux()
 
@@ -85,6 +86,7 @@ func main() {
 	mux.HandleFunc("GET /chat/chats", chatHandler.GetUserChats)
 	mux.HandleFunc("POST /chat/send", chatHandler.SendMessage)
 	mux.HandleFunc("GET /ws/subscribe", wsHandler.Subscribe)
+	mux.HandleFunc("GET /ws/game", gameWSHandler.SubscribeGame)
 
 	// Health
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
