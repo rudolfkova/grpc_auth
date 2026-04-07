@@ -1,0 +1,22 @@
+FROM golang:1.25.4-alpine AS builder
+WORKDIR /src
+
+COPY go.work ./
+COPY auth-service/go.mod auth-service/go.sum ./auth-service/
+COPY chat-service/go.mod chat-service/go.sum ./chat-service/
+COPY gateway/go.mod gateway/go.sum ./gateway/
+RUN go work sync && cd chat-service && go mod download
+
+COPY auth-service ./auth-service
+COPY chat-service ./chat-service
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/chat-service ./chat-service/cmd/chat-service
+
+FROM alpine:3.20
+RUN adduser -D -u 10001 appuser
+WORKDIR /app
+
+COPY --from=builder /out/chat-service /app/chat-service
+
+USER appuser
+EXPOSE 50052
+ENTRYPOINT ["/app/chat-service"]

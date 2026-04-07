@@ -1,0 +1,116 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: grpc-auth-postgres
+    environment:
+      POSTGRES_USER: messenger
+      POSTGRES_PASSWORD: messenger
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./deploy/docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U messenger -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: grpc-auth-redis
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    image: migrate/migrate:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./auth-service/migrations:/migrations/auth:ro
+      - ./chat-service/migrations:/migrations/chat:ro
+    command:
+      [
+        "-path", "/migrations/auth",
+        "-database", "postgres://messenger:messenger@postgres:5432/auth_db?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
+
+  migrate-chat:
+    image: migrate/migrate:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./chat-service/migrations:/migrations/chat:ro
+    command:
+      [
+        "-path", "/migrations/chat",
+        "-database", "postgres://messenger:messenger@postgres:5432/chat_db?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: grpc-auth-service
+    command: ["-config-path", "/configs/config-auth.toml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate-chat:
+        condition: service_completed_successfully
+    volumes:
+      - ./deploy/docker/config-auth.toml:/configs/config-auth.toml:ro
+    ports:
+      - "50051:50051"
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: chat-service/Dockerfile
+    container_name: grpc-chat-service
+    command: ["-config-path", "/configs/config-chat.toml"]
+    depends_on:
+      auth-service:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      migrate-chat:
+        condition: service_completed_successfully
+    volumes:
+      - ./deploy/docker/config-chat.toml:/configs/config-chat.toml:ro
+    ports:
+      - "50052:50052"
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: grpc-gateway
+    command: ["-config-path", "/configs/config-gateway.toml"]
+    depends_on:
+      auth-service:
+        condition: service_started
+      chat-service:
+        condition: service_started
+    volumes:
+      - ./deploy/docker/config-gateway.toml:/configs/config-gateway.toml:ro
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:
+  redis-data:

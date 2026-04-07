@@ -1,0 +1,5 @@
+bind_addr = ":8080"
+auth_service_addr = "auth-service:50051"
+chat_service_addr = "chat-service:50052"
+jwt_secret = "123"
+log_level = "DEBUG"
