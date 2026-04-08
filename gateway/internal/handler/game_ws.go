@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/gorilla/websocket"
 )
@@ -15,11 +14,9 @@ type GameWSHandler struct {
 	gameServiceAddr string
 }
 
+// NewGameWSHandler ...
 func NewGameWSHandler(logger *slog.Logger, gameServiceAddr string) *GameWSHandler {
-	return &GameWSHandler{
-		logger:          logger,
-		gameServiceAddr: gameServiceAddr,
-	}
+	return &GameWSHandler{logger: logger, gameServiceAddr: gameServiceAddr}
 }
 
 func (h *GameWSHandler) SubscribeGame(w http.ResponseWriter, r *http.Request) {
@@ -30,11 +27,11 @@ func (h *GameWSHandler) SubscribeGame(w http.ResponseWriter, r *http.Request) {
 	}
 	defer clientConn.Close()
 
-	token := r.URL.Query().Get("token")
-	backendURL := "ws://" + strings.TrimPrefix(h.gameServiceAddr, "http://")
-	backendURL = strings.TrimPrefix(backendURL, "https://")
-	backendURL = strings.TrimPrefix(backendURL, "ws://")
-	backendURL = "ws://" + backendURL + "/ws/game?token=" + url.QueryEscape(token)
+	q := url.Values{}
+	q.Set("token", r.URL.Query().Get("token"))
+	q.Set("session_id", r.URL.Query().Get("session_id"))
+
+	backendURL := "ws://" + h.gameServiceAddr + "/ws/game?" + q.Encode()
 
 	gameConn, _, err := websocket.DefaultDialer.Dial(backendURL, nil)
 	if err != nil {
@@ -52,11 +49,11 @@ func (h *GameWSHandler) SubscribeGame(w http.ResponseWriter, r *http.Request) {
 	proxy := func(src, dst *websocket.Conn) {
 		defer func() { done <- struct{}{} }()
 		for {
-			mt, msg, readErr := src.ReadMessage()
-			if readErr != nil {
+			mt, msg, err := src.ReadMessage()
+			if err != nil {
 				return
 			}
-			if writeErr := dst.WriteMessage(mt, msg); writeErr != nil {
+			if err := dst.WriteMessage(mt, msg); err != nil {
 				return
 			}
 		}

@@ -12,6 +12,30 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// ChatRepository ...
+type ChatRepository interface {
+	CreateChat(ctx context.Context, chatType, name string) (chatID int, createdAt time.Time, err error)
+	DeleteChat(ctx context.Context, chatID int) error
+	AddMember(ctx context.Context, chatID, userID int) error
+	RemoveMember(ctx context.Context, chatID, userID int) error
+	IsMember(ctx context.Context, chatID, userID int) (bool, error)
+	GetMemberIDs(ctx context.Context, chatID int) ([]int, error)
+	GetOrCreateDMChat(ctx context.Context, initiatorID, recipientID int) (chatID int, created bool, createdAt time.Time, err error)
+	GetUserChats(ctx context.Context, userID, limit, offset int) ([]model.ChatPreviewDTO, error)
+	ResetUnread(ctx context.Context, chatID, userID int) error
+}
+
+// MessageRepository ...
+type MessageRepository interface {
+	GetMessages(ctx context.Context, chatID, limit int, cursor string) ([]model.MessageDTO, error)
+	SendMessage(ctx context.Context, chatID, senderID int, text string) (messageID int, createdAt time.Time, err error)
+}
+
+// Hub ...
+type Hub interface {
+	Push(userID int, msg *chatv1.MessageDTO)
+}
+
 // Service ...
 type Service struct {
 	chatRepo    ChatRepository
@@ -21,48 +45,40 @@ type Service struct {
 
 // NewService ...
 func NewService(chatRepo ChatRepository, messageRepo MessageRepository, hub Hub) *Service {
-	return &Service{
-		chatRepo:    chatRepo,
-		messageRepo: messageRepo,
-		hub:         hub,
+	return &Service{chatRepo: chatRepo, messageRepo: messageRepo, hub: hub}
+}
+
+// CreateChat создаёт новый чат. Вызывающий сам управляет участниками через AddMember.
+func (s *Service) CreateChat(ctx context.Context, name string) (int, time.Time, error) {
+	chatType := "group"
+	if name == "" {
+		chatType = "dm"
 	}
+	return s.chatRepo.CreateChat(ctx, chatType, name)
 }
 
-// ChatRepository ...
-type ChatRepository interface {
-	// GetOrCreateChat ...
-	GetOrCreateChat(ctx context.Context, initiatorID int, recipientID int) (chatID int, created bool, createdAt time.Time, err error)
-	// IsMember ...
-	IsMember(ctx context.Context, chatID int, userID int) (bool, error)
-	// GetUserChats ...
-	GetUserChats(ctx context.Context, userID int, limit int, offset int) ([]model.ChatPreviewDTO, error)
-	// ResetUnread ...
-	ResetUnread(ctx context.Context, chatID int, userID int) error
-	// GetParticipants ...
-	GetParticipants(ctx context.Context, chatID int) (user1ID int, user2ID int, err error)
+// DeleteChat удаляет чат. Проверка прав — на вызывающем сервисе.
+func (s *Service) DeleteChat(ctx context.Context, chatID int) error {
+	return s.chatRepo.DeleteChat(ctx, chatID)
 }
 
-// MessageRepository ...
-type MessageRepository interface {
-	// GetMessages ...
-	GetMessages(ctx context.Context, chatID int, limit int, cursor string) ([]model.MassageDTO, error)
-	// SendMessage ...
-	SendMessage(ctx context.Context, chatID int, senderID int, text string) (messageID int, createdAt time.Time, err error)
+// AddMember добавляет участника в чат.
+func (s *Service) AddMember(ctx context.Context, chatID, userID int) error {
+	return s.chatRepo.AddMember(ctx, chatID, userID)
 }
 
-// Hub ...
-type Hub interface {
-	// Push ...
-	Push(userID int, msg *chatv1.MessageDTO)
+// RemoveMember удаляет участника из чата.
+func (s *Service) RemoveMember(ctx context.Context, chatID, userID int) error {
+	return s.chatRepo.RemoveMember(ctx, chatID, userID)
 }
 
-// GetOrCreateChat ...
-func (s *Service) GetOrCreateChat(ctx context.Context, initiatorID int, recipientID int) (chatID int, created bool, createdAt time.Time, err error) {
-	return s.chatRepo.GetOrCreateChat(ctx, initiatorID, recipientID)
+// GetOrCreateChat возвращает или создаёт DM-чат между двумя пользователями.
+func (s *Service) GetOrCreateChat(ctx context.Context, initiatorID, recipientID int) (int, bool, time.Time, error) {
+	return s.chatRepo.GetOrCreateDMChat(ctx, initiatorID, recipientID)
 }
 
-// GetMessages ...
-func (s *Service) GetMessages(ctx context.Context, chatID int, limit int, cursor string) (massages []model.MassageDTO, nextCursor string, err error) {
+// GetMessages возвращает историю сообщений. Требует членства в чате.
+func (s *Service) GetMessages(ctx context.Context, chatID, limit int, cursor string) ([]model.MessageDTO, string, error) {
 	callerID, ok := ctx.Value(interceptor.UserIDKey).(int)
 	if !ok {
 		return nil, "", chaterror.ErrUnauthenticated
@@ -85,9 +101,9 @@ func (s *Service) GetMessages(ctx context.Context, chatID int, limit int, cursor
 		return nil, "", err
 	}
 
-	var nextCurs string
+	var nextCursor string
 	if len(messages) > limit {
-		nextCurs = messages[limit].CreatedAt.UTC().Format(time.RFC3339Nano)
+		nextCursor = messages[limit].CreatedAt.UTC().Format(time.RFC3339Nano)
 		messages = messages[:limit]
 	}
 
@@ -95,25 +111,19 @@ func (s *Service) GetMessages(ctx context.Context, chatID int, limit int, cursor
 		return nil, "", err
 	}
 
-	return messages, nextCurs, nil
+	return messages, nextCursor, nil
 }
 
-// GetUserChats ...
-func (s *Service) GetUserChats(ctx context.Context, userID int, limit int, offset int) (chats []model.ChatPreviewDTO, err error) {
+// GetUserChats возвращает список чатов пользователя.
+func (s *Service) GetUserChats(ctx context.Context, userID, limit, offset int) ([]model.ChatPreviewDTO, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-
-	chat, err := s.chatRepo.GetUserChats(ctx, userID, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	return chat, nil
+	return s.chatRepo.GetUserChats(ctx, userID, limit, offset)
 }
 
-// SendMessage ...
-func (s *Service) SendMessage(ctx context.Context, chatID int, senderID int, text string) (int, time.Time, error) {
+// SendMessage отправляет сообщение и пушит его всем участникам чата через hub.
+func (s *Service) SendMessage(ctx context.Context, chatID, senderID int, text string) (int, time.Time, error) {
 	isMember, err := s.chatRepo.IsMember(ctx, chatID, senderID)
 	if err != nil {
 		return 0, time.Time{}, err
@@ -127,9 +137,12 @@ func (s *Service) SendMessage(ctx context.Context, chatID int, senderID int, tex
 		return 0, time.Time{}, err
 	}
 
-	user1ID, user2ID, err := s.chatRepo.GetParticipants(ctx, chatID)
+	// Пушим всем участникам чата (включая отправителя — для синхронизации
+	// между устройствами, клиент сам решает показывать ли своё сообщение повторно).
+	memberIDs, err := s.chatRepo.GetMemberIDs(ctx, chatID)
 	if err != nil {
-		return 0, time.Time{}, err
+		// Сообщение уже сохранено — не возвращаем ошибку, просто не пушим.
+		return messageID, createdAt, nil
 	}
 
 	msg := &chatv1.MessageDTO{
@@ -139,9 +152,9 @@ func (s *Service) SendMessage(ctx context.Context, chatID int, senderID int, tex
 		Text:      text,
 		CreatedAt: timestamppb.New(createdAt),
 	}
-
-	s.hub.Push(user1ID, msg)
-	s.hub.Push(user2ID, msg)
+	for _, uid := range memberIDs {
+		s.hub.Push(uid, msg)
+	}
 
 	return messageID, createdAt, nil
 }

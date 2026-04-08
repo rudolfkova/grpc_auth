@@ -19,90 +19,80 @@ func NewMessageRepository(db *sql.DB) *MessageRepository {
 	return &MessageRepository{db: db}
 }
 
-// GetMessages ...
-func (r *MessageRepository) GetMessages(ctx context.Context, chatID int, limit int, cursor string) ([]model.MassageDTO, error) {
+// GetMessages возвращает сообщения чата с cursor-пагинацией (по created_at DESC).
+func (r *MessageRepository) GetMessages(ctx context.Context, chatID, limit int, cursor string) ([]model.MessageDTO, error) {
 	const op = "MessageRepository.GetMessages"
 
 	var (
 		rows *sql.Rows
 		err  error
 	)
-
 	if cursor == "" {
-		const query = `
+		rows, err = r.db.QueryContext(ctx, `
 			SELECT id, chat_id, sender_id, text, created_at
 			FROM messages
 			WHERE chat_id = $1
 			ORDER BY created_at DESC
 			LIMIT $2
-		`
-		rows, err = r.db.QueryContext(ctx, query, chatID, limit)
+		`, chatID, limit)
 	} else {
-		const query = `
+		rows, err = r.db.QueryContext(ctx, `
 			SELECT id, chat_id, sender_id, text, created_at
 			FROM messages
 			WHERE chat_id = $1 AND created_at < $2
 			ORDER BY created_at DESC
 			LIMIT $3
-		`
-		rows, err = r.db.QueryContext(ctx, query, chatID, cursor, limit)
+		`, chatID, cursor, limit)
 	}
-
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			fmt.Println(err)
-		}
-	}()
+	defer rows.Close()
 
-	var messages []model.MassageDTO
+	var messages []model.MessageDTO
 	for rows.Next() {
-		var msg model.MassageDTO
-		if err := rows.Scan(
-			&msg.ID,
-			&msg.ChatID,
-			&msg.SenderID,
-			&msg.Text,
-			&msg.CreatedAt,
-		); err != nil {
+		var msg model.MessageDTO
+		if err := rows.Scan(&msg.ID, &msg.ChatID, &msg.SenderID, &msg.Text, &msg.CreatedAt); err != nil {
 			return nil, fmt.Errorf("%s: scan: %w", op, err)
 		}
 		messages = append(messages, msg)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("%s: rows: %w", op, err)
 	}
-
 	return messages, nil
 }
 
-// SendMessage ...
-func (r *MessageRepository) SendMessage(ctx context.Context, chatID int, senderID int, text string) (int, time.Time, error) {
+// SendMessage вставляет сообщение и инкрементирует unread всем участникам кроме отправителя.
+func (r *MessageRepository) SendMessage(ctx context.Context, chatID, senderID int, text string) (int, time.Time, error) {
 	const op = "MessageRepository.SendMessage"
 
-	const query = `
-		WITH inserted AS (
-			INSERT INTO messages (chat_id, sender_id, text)
-			VALUES ($1, $2, $3)
-			RETURNING id, created_at
-		)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("%s: begin tx: %w", op, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var messageID int
+	var createdAt time.Time
+	if err := tx.QueryRowContext(ctx, `
+		INSERT INTO messages (chat_id, sender_id, text)
+		VALUES ($1, $2, $3)
+		RETURNING id, created_at
+	`, chatID, senderID, text).Scan(&messageID, &createdAt); err != nil {
+		return 0, time.Time{}, fmt.Errorf("%s: insert message: %w", op, err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
 		UPDATE chat_members
 		SET unread_count = unread_count + 1
 		WHERE chat_id = $1 AND user_id != $2
-		RETURNING (SELECT id FROM inserted), (SELECT created_at FROM inserted)
-	`
+	`, chatID, senderID); err != nil {
+		return 0, time.Time{}, fmt.Errorf("%s: update unread: %w", op, err)
+	}
 
-	var (
-		messageID int
-		createdAt time.Time
-	)
-
-	err := r.db.QueryRowContext(ctx, query, chatID, senderID, text).Scan(&messageID, &createdAt)
-	if err != nil {
-		return 0, time.Time{}, fmt.Errorf("%s: %w", op, err)
+	if err := tx.Commit(); err != nil {
+		return 0, time.Time{}, fmt.Errorf("%s: commit: %w", op, err)
 	}
 
 	return messageID, createdAt, nil

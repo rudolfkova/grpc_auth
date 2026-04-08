@@ -3,8 +3,8 @@ package model
 
 import "time"
 
-// MassageDTO ...
-type MassageDTO struct {
+// MessageDTO ...
+type MessageDTO struct {
 	ID        int
 	ChatID    int
 	SenderID  int
@@ -15,7 +15,8 @@ type MassageDTO struct {
 // ChatPreviewDTO ...
 type ChatPreviewDTO struct {
 	ChatID        int
-	CompanionID   int
+	Name          string
+	CompanionID   int // только для DM, иначе 0
 	LastMessage   string
 	UnreadCount   int
 	LastMessageAt *time.Time
