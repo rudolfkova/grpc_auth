@@ -2,6 +2,7 @@ package gameapp
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"game/internal/domain/models"
@@ -9,7 +10,7 @@ import (
 
 // Engine is the domain boundary used by app layer.
 type Engine interface {
-	ProcessTick(actions []models.Action) models.Snapshot
+	ProcessTick(actions []models.Action) []models.Event
 }
 
 // Service orchestrates tick loop and batching.
@@ -17,7 +18,7 @@ type Service struct {
 	engine   Engine
 	tickRate time.Duration
 	ingress  chan models.Action
-	events   chan models.Snapshot
+	events   chan models.Outbound
 }
 
 func NewService(engine Engine, tickRate time.Duration, queueSize int) *Service {
@@ -31,7 +32,7 @@ func NewService(engine Engine, tickRate time.Duration, queueSize int) *Service {
 		engine:   engine,
 		tickRate: tickRate,
 		ingress:  make(chan models.Action, queueSize),
-		events:   make(chan models.Snapshot, queueSize),
+		events:   make(chan models.Outbound, queueSize),
 	}
 }
 
@@ -44,7 +45,7 @@ func (s *Service) Submit(a models.Action) bool {
 	}
 }
 
-func (s *Service) Events() <-chan models.Snapshot {
+func (s *Service) Events() <-chan models.Outbound {
 	return s.events
 }
 
@@ -58,10 +59,24 @@ func (s *Service) Run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			actions := s.collectActions()
-			snap := s.engine.ProcessTick(actions)
-			select {
-			case s.events <- snap:
-			default:
+			evs := s.engine.ProcessTick(actions)
+			for _, ev := range evs {
+				body, err := json.Marshal(ev.Payload)
+				if err != nil {
+					continue
+				}
+				out := models.Outbound{
+					RecipientUserID: ev.RecipientUserID,
+					Message: models.Envelope{
+						Service: "game",
+						Type:    ev.Type,
+						Payload: body,
+					},
+				}
+				select {
+				case s.events <- out:
+				default:
+				}
 			}
 		}
 	}

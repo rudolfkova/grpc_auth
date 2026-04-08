@@ -41,7 +41,7 @@ docker-logs:
 
 docker-reset:
 	$(DOCKER) compose down --remove-orphans -v
-	$(DOCKER) rm -f grpc-auth-redis grpc-auth-postgres grpc-auth-service grpc-chat-service grpc-gateway grpc_auth-migrate-1 grpc_auth-migrate-chat-1 2>/dev/null || true
+	$(DOCKER) rm -f grpc-auth-redis grpc-auth-postgres grpc-auth-service grpc-chat-service grpc-gateway grpc_auth-migrate-1 grpc_auth-migrate-chat-1 grpc_auth-postgres-init-dbs-1 2>/dev/null || true
 
 docker-fix-iptables:
 	sudo iptables -t filter -N DOCKER-ISOLATION-STAGE-1 2>/dev/null || true

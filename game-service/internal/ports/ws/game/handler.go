@@ -2,7 +2,6 @@ package gamews
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -24,23 +23,19 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-type envelope struct {
-	Service string          `json:"service"`
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload"`
-}
-
-type statePayload struct {
-	Players []models.Player `json:"players"`
-}
-
 type Handler struct {
 	logger    *slog.Logger
 	jwtSecret string
 	app       *gameapp.Service
 
 	mu      sync.RWMutex
-	clients map[*websocket.Conn]chan envelope
+	clients map[*websocket.Conn]clientConn
+	byUser  map[int64]map[*websocket.Conn]chan models.Envelope
+}
+
+type clientConn struct {
+	userID int64
+	out    chan models.Envelope
 }
 
 func NewHandler(logger *slog.Logger, jwtSecret string, app *gameapp.Service) *Handler {
@@ -48,33 +43,40 @@ func NewHandler(logger *slog.Logger, jwtSecret string, app *gameapp.Service) *Ha
 		logger:    logger,
 		jwtSecret: jwtSecret,
 		app:       app,
-		clients:   make(map[*websocket.Conn]chan envelope),
+		clients:   make(map[*websocket.Conn]clientConn),
+		byUser:    make(map[int64]map[*websocket.Conn]chan models.Envelope),
 	}
 	go h.broadcastSnapshots()
 	return h
 }
 
 func (h *Handler) broadcastSnapshots() {
-	for snap := range h.app.Events() {
-		players := make([]models.Player, 0, len(snap.Players))
-		for id, pos := range snap.Players {
-			players = append(players, models.Player{ID: id, X: pos.X, Y: pos.Y})
-		}
-		body, err := json.Marshal(statePayload{Players: players})
-		if err != nil {
-			continue
-		}
-		h.broadcast(envelope{Service: "game", Type: "state", Payload: body})
+	for out := range h.app.Events() {
+		h.send(out)
 	}
 }
 
-func (h *Handler) broadcast(msg envelope) {
+func (h *Handler) send(out models.Outbound) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	for _, out := range h.clients {
-		select {
-		case out <- msg:
-		default:
+
+	if out.RecipientUserID == 0 {
+		// broadcast
+		for _, c := range h.clients {
+			select {
+			case c.out <- out.Message:
+			default:
+			}
+		}
+		return
+	}
+
+	if conns, ok := h.byUser[out.RecipientUserID]; ok {
+		for _, ch := range conns {
+			select {
+			case ch <- out.Message:
+			default:
+			}
 		}
 	}
 }
@@ -97,14 +99,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := make(chan envelope, 64)
+	out := make(chan models.Envelope, 64)
 	h.mu.Lock()
-	h.clients[conn] = out
+	h.clients[conn] = clientConn{userID: userID, out: out}
+	if _, ok := h.byUser[userID]; !ok {
+		h.byUser[userID] = make(map[*websocket.Conn]chan models.Envelope)
+	}
+	h.byUser[userID][conn] = out
 	h.mu.Unlock()
 
 	defer func() {
 		h.mu.Lock()
-		delete(h.clients, conn)
+		if c, ok := h.clients[conn]; ok {
+			delete(h.clients, conn)
+			if m, ok := h.byUser[c.userID]; ok {
+				delete(m, conn)
+				if len(m) == 0 {
+					delete(h.byUser, c.userID)
+				}
+			}
+		}
 		h.mu.Unlock()
 		close(out)
 		_ = conn.Close()
@@ -119,25 +133,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	for {
-		var env envelope
+		var env models.Envelope
 		if err := conn.ReadJSON(&env); err != nil {
 			return
 		}
-		if env.Service != "game" || env.Type != "move" {
-			continue
-		}
-		var mv models.MoveIntent
-		if err := json.Unmarshal(env.Payload, &mv); err != nil {
-			continue
-		}
-		if mv.DX < -1 || mv.DX > 1 || mv.DY < -1 || mv.DY > 1 {
+
+		// Port stays generic: it does not parse/validate payload schema
+		// and does not restrict allowed Type values.
+		// Service filter is optional; keep endpoint dedicated to game traffic.
+		if env.Service != "game" {
 			continue
 		}
 		_ = h.app.Submit(models.Action{
 			PlayerID: userID,
-			Type:     "move",
-			DX:       mv.DX,
-			DY:       mv.DY,
+			Type:     env.Type,
+			Payload:  env.Payload,
 		})
 	}
 }

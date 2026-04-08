@@ -9,17 +9,40 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./deploy/docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      # Host 15432 avoids conflict with a local Postgres on :5432. Inside the container DB is still :5432.
+      - "15432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U messenger -d postgres"]
+      # Use TCP to localhost so "ready" matches what other containers need over the network.
+      test: ["CMD-SHELL", "pg_isready -U messenger -d postgres -h 127.0.0.1 -p 5432"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # initdb.d only runs on empty volumes; existing data skips it, so ensure app DBs exist.
+  postgres-init-dbs:
+    image: postgres:16-alpine
+    network_mode: "service:postgres"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: messenger
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        psql -h 127.0.0.1 -U messenger -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='auth_db'" | grep -q 1 || psql -h 127.0.0.1 -U messenger -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE auth_db OWNER messenger"
+        psql -h 127.0.0.1 -U messenger -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='chat_db'" | grep -q 1 || psql -h 127.0.0.1 -U messenger -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE chat_db OWNER messenger"
+    restart: "no"
 
   redis:
     image: redis:7-alpine
     container_name: grpc-auth-redis
     volumes:
       - redis-data:/data
+    ports:
+      - "16379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -28,22 +51,28 @@ services:
 
   migrate:
     image: migrate/migrate:latest
+    # Share postgres network stack so DB is reachable on 127.0.0.1. Avoids bridge/iptables
+    # drops that still allow in-container pg_isready over the socket.
+    network_mode: "service:postgres"
     depends_on:
       postgres:
         condition: service_healthy
+      postgres-init-dbs:
+        condition: service_completed_successfully
     volumes:
       - ./auth-service/migrations:/migrations/auth:ro
       - ./chat-service/migrations:/migrations/chat:ro
     command:
       [
         "-path", "/migrations/auth",
-        "-database", "postgres://messenger:messenger@postgres:5432/auth_db?sslmode=disable",
+        "-database", "postgres://messenger:messenger@127.0.0.1:5432/auth_db?sslmode=disable",
         "up"
       ]
     restart: "no"
 
   migrate-chat:
     image: migrate/migrate:latest
+    network_mode: "service:postgres"
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,7 +83,7 @@ services:
     command:
       [
         "-path", "/migrations/chat",
-        "-database", "postgres://messenger:messenger@postgres:5432/chat_db?sslmode=disable",
+        "-database", "postgres://messenger:messenger@127.0.0.1:5432/chat_db?sslmode=disable",
         "up"
       ]
     restart: "no"
@@ -64,6 +93,8 @@ services:
       context: ./auth-service
       dockerfile: Dockerfile
     container_name: grpc-auth-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-auth.toml"]
     depends_on:
       postgres:
@@ -82,6 +113,8 @@ services:
       context: .
       dockerfile: chat-service/Dockerfile
     container_name: grpc-chat-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-chat.toml"]
     depends_on:
       auth-service:
@@ -100,6 +133,8 @@ services:
       context: ./gateway
       dockerfile: Dockerfile
     container_name: grpc-gateway
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-gateway.toml"]
     depends_on:
       auth-service:
