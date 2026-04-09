@@ -36,9 +36,10 @@ func NewTokenProvider(jwtSecret string) TokenProvider {
 
 // AccessClaims ...
 type AccessClaims struct {
-	UserID    int `json:"user_id"`
-	SessionID int `json:"session_id"`
-	AppID     int `json:"app_id"`
+	UserID    int    `json:"user_id"`
+	Email     string `json:"email"`
+	SessionID int    `json:"session_id"`
+	AppID     int    `json:"app_id"`
 	jwt.RegisteredClaims
 }
 
@@ -51,11 +52,12 @@ type UserAccessDate struct {
 }
 
 // CreateAccessToken ...
-func (p TokenProvider) CreateAccessToken(userID int, sessionID int, appID int, accExp time.Time) (accToken string, err error) {
+func (p TokenProvider) CreateAccessToken(userID int, email string, sessionID int, appID int, accExp time.Time) (accToken string, err error) {
 	const op = "TokenProvider.CreateAccessToken"
 
 	claims := AccessClaims{
 		UserID:    userID,
+		Email:     email,
 		SessionID: sessionID,
 		AppID:     appID,
 		RegisteredClaims: jwt.RegisteredClaims{

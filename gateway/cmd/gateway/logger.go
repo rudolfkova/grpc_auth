@@ -1,7 +1,7 @@
-// Package config ...
-package config
+package main
 
 import (
+	"gateway/internal/config"
 	"log/slog"
 	"os"
 	"time"
@@ -10,7 +10,7 @@ import (
 )
 
 // NewLogger builds slog logger from config.
-func NewLogger(cfg *Config) *slog.Logger {
+func NewLogger(cfg *config.Config) *slog.Logger {
 	var lvl slog.LevelVar
 	if err := lvl.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
 		lvl.Set(slog.LevelInfo)

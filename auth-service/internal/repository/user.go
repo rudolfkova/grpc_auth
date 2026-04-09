@@ -19,5 +19,6 @@ var (
 type UserRepository interface {
 	SaveUser(ctx context.Context, email string, passHash []byte) error
 	UserByEmail(ctx context.Context, email string) (domain.User, error)
+	UserByID(ctx context.Context, userID int) (domain.User, error)
 	IsAdmin(ctx context.Context, userID int) (bool, error)
 }

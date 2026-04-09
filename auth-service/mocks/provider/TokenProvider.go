@@ -13,9 +13,9 @@ type TokenProvider struct {
 	mock.Mock
 }
 
-// CreateAccessToken provides a mock function with given fields: userID, sessionID, appID, exp
-func (_m *TokenProvider) CreateAccessToken(userID int, sessionID int, appID int, exp time.Time) (string, error) {
-	ret := _m.Called(userID, sessionID, appID, exp)
+// CreateAccessToken provides a mock function with given fields: userID, email, sessionID, appID, exp
+func (_m *TokenProvider) CreateAccessToken(userID int, email string, sessionID int, appID int, exp time.Time) (string, error) {
+	ret := _m.Called(userID, email, sessionID, appID, exp)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateAccessToken")
@@ -23,17 +23,17 @@ func (_m *TokenProvider) CreateAccessToken(userID int, sessionID int, appID int,
 
 	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(int, int, int, time.Time) (string, error)); ok {
-		return rf(userID, sessionID, appID, exp)
+	if rf, ok := ret.Get(0).(func(int, string, int, int, time.Time) (string, error)); ok {
+		return rf(userID, email, sessionID, appID, exp)
 	}
-	if rf, ok := ret.Get(0).(func(int, int, int, time.Time) string); ok {
-		r0 = rf(userID, sessionID, appID, exp)
+	if rf, ok := ret.Get(0).(func(int, string, int, int, time.Time) string); ok {
+		r0 = rf(userID, email, sessionID, appID, exp)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(int, int, int, time.Time) error); ok {
-		r1 = rf(userID, sessionID, appID, exp)
+	if rf, ok := ret.Get(1).(func(int, string, int, int, time.Time) error); ok {
+		r1 = rf(userID, email, sessionID, appID, exp)
 	} else {
 		r1 = ret.Error(1)
 	}

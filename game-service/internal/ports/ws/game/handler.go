@@ -2,6 +2,7 @@ package gamews
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -19,7 +20,8 @@ var upgrader = websocket.Upgrader{
 }
 
 type claims struct {
-	UserID int64 `json:"user_id"`
+	UserID int64  `json:"user_id"`
+	Email  string `json:"email"`
 	jwt.RegisteredClaims
 }
 
@@ -88,7 +90,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.userIDFromToken(r.URL.Query().Get("token"))
+	userID, email, err := h.claimsFromToken(r.URL.Query().Get("token"))
 	if err != nil {
 		_ = conn.WriteJSON(map[string]any{
 			"service": "game",
@@ -108,7 +110,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.byUser[userID][conn] = out
 	h.mu.Unlock()
 
+	h.logger.Info("player connected",
+		slog.Int64("user_id", userID),
+		slog.String("email", email),
+	)
+
 	defer func() {
+		h.logger.Info("player disconnected",
+			slog.Int64("user_id", userID),
+			slog.String("email", email),
+		)
 		h.mu.Lock()
 		if c, ok := h.clients[conn]; ok {
 			delete(h.clients, conn)
@@ -132,35 +143,58 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	for {
-		var env models.Envelope
-		if err := conn.ReadJSON(&env); err != nil {
+	writeReject := func(reason, message, reqType, reqService string) {
+		env, err := buildRejectEnvelope(reason, message, reqType, reqService)
+		if err != nil {
 			return
 		}
+		_ = conn.WriteJSON(env)
+	}
 
-		// Port stays generic: it does not parse/validate payload schema
-		// and does not restrict allowed Type values.
-		// Service filter is optional; keep endpoint dedicated to game traffic.
-		if env.Service != "game" {
+	for {
+		mt, data, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		if mt != websocket.TextMessage && mt != websocket.BinaryMessage {
 			continue
 		}
-		_ = h.app.Submit(models.Action{
+
+		var env models.Envelope
+		if err := json.Unmarshal(data, &env); err != nil {
+			writeReject(RejectReasonInvalidJSON, "message is not valid JSON", "", "")
+			continue
+		}
+
+		if env.Service != "game" {
+			writeReject(RejectReasonWrongService, "expected service \"game\"", env.Type, env.Service)
+			continue
+		}
+		if env.Type == "" {
+			writeReject(RejectReasonMissingType, "field \"type\" is required", "", env.Service)
+			continue
+		}
+
+		ok := h.app.Submit(models.Action{
 			PlayerID: userID,
 			Type:     env.Type,
 			Payload:  env.Payload,
 		})
+		if !ok {
+			writeReject(RejectReasonQueueFull, "action queue is full, try again later", env.Type, env.Service)
+		}
 	}
 }
 
-func (h *Handler) userIDFromToken(raw string) (int64, error) {
+func (h *Handler) claimsFromToken(raw string) (userID int64, email string, err error) {
 	c := &claims{}
 	token, err := jwt.ParseWithClaims(raw, c, func(t *jwt.Token) (any, error) {
 		return []byte(h.jwtSecret), nil
 	})
 	if err != nil || !token.Valid || c.UserID == 0 {
-		return 0, err
+		return 0, "", err
 	}
-	return c.UserID, nil
+	return c.UserID, c.Email, nil
 }
 
 func Serve(ctx context.Context, logger *slog.Logger, addr string, handler http.Handler) error {

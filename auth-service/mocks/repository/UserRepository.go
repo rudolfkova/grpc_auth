@@ -88,6 +88,34 @@ func (_m *UserRepository) UserByEmail(ctx context.Context, email string) (domain
 	return r0, r1
 }
 
+// UserByID provides a mock function with given fields: ctx, userID
+func (_m *UserRepository) UserByID(ctx context.Context, userID int) (domain.User, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UserByID")
+	}
+
+	var r0 domain.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int) (domain.User, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int) domain.User); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		r0 = ret.Get(0).(domain.User)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NewUserRepository creates a new instance of UserRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewUserRepository(t interface {

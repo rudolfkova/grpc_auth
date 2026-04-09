@@ -92,6 +92,11 @@ func TestUserRepository_SaveAndFindUser(t *testing.T) {
 	domainUser, err := s.UserByEmail(ctx, user.email)
 	assert.NoError(t, err)
 	assert.Equal(t, user.email, domainUser.Email)
+
+	byID, err := s.UserByID(ctx, domainUser.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, domainUser.ID, byID.ID)
+	assert.Equal(t, user.email, byID.Email)
 }
 
 func TestUserRepository_SaveAndCheckPermisions(t *testing.T) {

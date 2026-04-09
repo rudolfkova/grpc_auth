@@ -124,7 +124,7 @@ func (a *AuthUseCase) Login(ctx context.Context, email string, password string, 
 
 	accExp := time.Now().Add(a.accessTokenTTL)
 
-	accessToken, err := a.token.CreateAccessToken(int(user.ID), sessionID, int(appID), accExp)
+	accessToken, err := a.token.CreateAccessToken(int(user.ID), user.Email, sessionID, int(appID), accExp)
 	if err != nil {
 		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
@@ -223,8 +223,13 @@ func (a *AuthUseCase) RefreshToken(ctx context.Context, refreshToken string) (to
 		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}
 
+	user, err := a.users.UserByID(ctx, session.UserID)
+	if err != nil {
+		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
+	}
+
 	accExp := time.Now().Add(a.accessTokenTTL)
-	accessToken, err := a.token.CreateAccessToken(session.UserID, sessionID, session.AppID, accExp)
+	accessToken, err := a.token.CreateAccessToken(session.UserID, user.Email, sessionID, session.AppID, accExp)
 	if err != nil {
 		return tokenjwt.Token{}, fmt.Errorf("%s: %w", op, err)
 	}

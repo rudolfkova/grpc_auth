@@ -79,7 +79,7 @@ func TestAuthUseCase_Login_Success(t *testing.T) {
 		Return(100, nil)
 
 	tokenProv.
-		On("CreateAccessToken", 42, 100, user1.appID, mock.AnythingOfType("time.Time")).
+		On("CreateAccessToken", 42, user1.email, 100, user1.appID, mock.AnythingOfType("time.Time")).
 		Return("ACCESS", nil)
 
 	tok, err := uc.Login(user1.ctx, user1.email, user1.password, user1.appID)
@@ -360,7 +360,7 @@ func TestAuthUseCase_Login_AccessTokenProviderError(t *testing.T) {
 		Return(100, nil)
 
 	tokenProv.
-		On("CreateAccessToken", 42, 100, user1.appID, mock.AnythingOfType("time.Time")).
+		On("CreateAccessToken", 42, user1.email, 100, user1.appID, mock.AnythingOfType("time.Time")).
 		Return("", errFailed)
 
 	tok, err := uc.Login(user1.ctx, user1.email, user1.password, user1.appID)
@@ -823,8 +823,12 @@ func TestAuthUseCase_RefreshToken_Success(t *testing.T) {
 		On("CreateSession", user1.ctx, session.UserID, session.AppID, "NEW_REFRESH", mock.AnythingOfType("time.Time")).
 		Return(200, nil)
 
+	userRepo.
+		On("UserByID", user1.ctx, session.UserID).
+		Return(domain.User{ID: session.UserID, Email: "refreshed@example.com"}, nil)
+
 	tokenProv.
-		On("CreateAccessToken", session.UserID, 200, session.AppID, mock.AnythingOfType("time.Time")).
+		On("CreateAccessToken", session.UserID, "refreshed@example.com", 200, session.AppID, mock.AnythingOfType("time.Time")).
 		Return("NEW_ACCESS", nil)
 
 	tok, err := uc.RefreshToken(user1.ctx, user1.refreshToken)
@@ -834,6 +838,7 @@ func TestAuthUseCase_RefreshToken_Success(t *testing.T) {
 	assert.Equal(t, "NEW_REFRESH", tok.RefreshToken)
 
 	sessRepo.AssertExpectations(t)
+	userRepo.AssertExpectations(t)
 	tokenProv.AssertExpectations(t)
 }
 
@@ -1162,8 +1167,12 @@ func TestAuthUseCase_RefreshToken_CreateAccessTokenError(t *testing.T) {
 		On("CreateSession", user1.ctx, session.UserID, session.AppID, "NEW_REFRESH", mock.AnythingOfType("time.Time")).
 		Return(200, nil)
 
+	userRepo.
+		On("UserByID", user1.ctx, session.UserID).
+		Return(domain.User{ID: session.UserID, Email: "refreshed@example.com"}, nil)
+
 	tokenProv.
-		On("CreateAccessToken", session.UserID, 200, session.AppID, mock.AnythingOfType("time.Time")).
+		On("CreateAccessToken", session.UserID, "refreshed@example.com", 200, session.AppID, mock.AnythingOfType("time.Time")).
 		Return("", errFailed)
 
 	tok, err := uc.RefreshToken(user1.ctx, user1.refreshToken)
@@ -1175,5 +1184,6 @@ func TestAuthUseCase_RefreshToken_CreateAccessTokenError(t *testing.T) {
 	assert.Equal(t, "", tok.RefreshToken)
 
 	sessRepo.AssertExpectations(t)
+	userRepo.AssertExpectations(t)
 	tokenProv.AssertExpectations(t)
 }

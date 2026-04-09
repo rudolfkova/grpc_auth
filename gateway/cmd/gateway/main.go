@@ -11,8 +11,6 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -34,11 +32,12 @@ func main() {
 		log.Printf("config not loaded (%v), using defaults", err)
 	}
 
-	logLevel := slog.LevelInfo
-	if strings.ToUpper(cfg.LogLevel) == "DEBUG" {
-		logLevel = slog.LevelDebug
-	}
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
+	// logLevel := slog.LevelInfo
+	// if strings.ToUpper(cfg.LogLevel) == "DEBUG" {
+	// 	logLevel = slog.LevelDebug
+	// }
+
+	logger := NewLogger(cfg)
 
 	authConn, err := grpc.NewClient(cfg.AuthServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {

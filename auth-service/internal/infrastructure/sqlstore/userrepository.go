@@ -69,6 +69,23 @@ func (r *UserRepository) UserByEmail(ctx context.Context, email string) (domain.
 	return u, nil
 }
 
+// UserByID returns the user by primary key (email filled; PassHash may be empty).
+func (r *UserRepository) UserByID(ctx context.Context, userID int) (domain.User, error) {
+	const op = "UserRepository.UserByID"
+
+	q := `SELECT id, email FROM users WHERE id = $1`
+
+	var u domain.User
+	err := r.db.QueryRowContext(ctx, q, userID).Scan(&u.ID, &u.Email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.User{}, fmt.Errorf("%s: %w", op, repository.ErrUserNotFound)
+		}
+		return domain.User{}, fmt.Errorf("%s: %w", op, err)
+	}
+	return u, nil
+}
+
 // IsAdmin ...
 func (r *UserRepository) IsAdmin(ctx context.Context, userID int) (bool, error) {
 	const op = "UserRepository.IsAdmin"

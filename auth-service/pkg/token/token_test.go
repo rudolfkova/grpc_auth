@@ -16,6 +16,7 @@ var (
 	secret   = []byte("123")
 	user     = testUser{
 		userID:    42,
+		email:     "player@example.com",
 		sessionID: 10,
 		appID:     1,
 		accExp:    time.Now().Add(time.Minute * 15),
@@ -24,13 +25,14 @@ var (
 
 type testUser struct {
 	userID    int
+	email     string
 	sessionID int
 	appID     int
 	accExp    time.Time
 }
 
 func TestCreateAccessToken_Success(t *testing.T) {
-	accToken, err := provider.CreateAccessToken(user.userID, user.sessionID, user.appID, user.accExp)
+	accToken, err := provider.CreateAccessToken(user.userID, user.email, user.sessionID, user.appID, user.accExp)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, accToken)
@@ -54,10 +56,13 @@ func TestCreateAccessToken_Success(t *testing.T) {
 	require.True(t, ok)
 	appid, ok := claims["app_id"].(float64)
 	require.True(t, ok)
+	email, ok := claims["email"].(string)
+	require.True(t, ok)
 
 	require.Greater(t, int64(exp), time.Now().Unix())
 	assert.Equal(t, float64(user.userID), userid)
 	assert.Equal(t, float64(user.sessionID), sessionid)
 	assert.Equal(t, float64(user.appID), appid)
+	assert.Equal(t, user.email, email)
 
 }
