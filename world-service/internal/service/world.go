@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"world/internal/model"
 	"world/internal/repository"
@@ -22,6 +23,7 @@ func (s *World) Create(ctx context.Context, w model.World) error {
 	if w.ID == "" {
 		return ErrInvalidArgument
 	}
+	w.Name = strings.TrimSpace(w.Name)
 	if w.SchemaVersion == 0 {
 		w.SchemaVersion = 1
 	}
@@ -37,6 +39,18 @@ func (s *World) Get(ctx context.Context, id string) (model.World, error) {
 		return model.World{}, ErrInvalidArgument
 	}
 	w, err := s.repo.GetByID(ctx, id)
+	if errors.Is(err, repository.ErrNotFound) {
+		return model.World{}, ErrNotFound
+	}
+	return w, err
+}
+
+func (s *World) GetByName(ctx context.Context, name string) (model.World, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return model.World{}, ErrInvalidArgument
+	}
+	w, err := s.repo.GetByName(ctx, name)
 	if errors.Is(err, repository.ErrNotFound) {
 		return model.World{}, ErrNotFound
 	}

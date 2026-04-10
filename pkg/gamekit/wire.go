@@ -13,10 +13,16 @@ const (
 	TypeHit       = "hit"
 	TypeSpawnTile = "spawn_tile"
 	TypeClearTile = "clear_tile"
+	TypeSaveWorld = "save_world"
 	TypeState     = "state"
 	TypeReject    = "reject"
 	TypeError     = "error"
+	// TypeSaveWorldResult — ответ на save_world (только инициатору).
+	TypeSaveWorldResult = "save_world_result"
 )
+
+// SnapshotSchemaVersion — schema_version для снимка ark-serde, который пишет game-service в world-service.
+const SnapshotSchemaVersion int32 = 1
 
 // Envelope — обёртка WebSocket JSON (клиент ↔ game-service).
 type Envelope struct {
@@ -53,6 +59,22 @@ type TileClearIntent struct {
 	X     int `json:"x"`
 	Y     int `json:"y"`
 	Layer int `json:"layer"`
+}
+
+// SaveWorldIntent — payload для TypeSaveWorld (только разрешённый admin user_id на сервере).
+type SaveWorldIntent struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// SaveWorldResultPayload — payload для TypeSaveWorldResult.
+type SaveWorldResultPayload struct {
+	Ok      bool   `json:"ok"`
+	Code    string `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+	WorldID string `json:"world_id,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Version int64  `json:"version,omitempty"`
 }
 
 // Player — элемент массива players в payload события TypeState.

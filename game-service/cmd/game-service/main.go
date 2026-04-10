@@ -61,7 +61,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("engine: %v", err)
 	}
-	app := gameapp.NewService(engine, cfg.TickRate, cfg.QueueSize)
+	app := gameapp.NewService(logger, engine, cfg.TickRate, cfg.QueueSize,
+		cfg.WorldServiceAddr, cfg.WorldServiceToken, cfg.SaveWorldAdminUserID)
 	wsHandler := gamews.NewHandler(logger, cfg.JWTSecret, app)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

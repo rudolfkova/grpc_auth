@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	WorldService_CreateWorld_FullMethodName          = "/world.v1.WorldService/CreateWorld"
 	WorldService_GetWorld_FullMethodName             = "/world.v1.WorldService/GetWorld"
+	WorldService_GetWorldByName_FullMethodName       = "/world.v1.WorldService/GetWorldByName"
 	WorldService_ReplaceWorldSnapshot_FullMethodName = "/world.v1.WorldService/ReplaceWorldSnapshot"
 	WorldService_DeleteWorld_FullMethodName          = "/world.v1.WorldService/DeleteWorld"
 	WorldService_ListWorlds_FullMethodName           = "/world.v1.WorldService/ListWorlds"
@@ -34,6 +35,7 @@ const (
 type WorldServiceClient interface {
 	CreateWorld(ctx context.Context, in *CreateWorldRequest, opts ...grpc.CallOption) (*CreateWorldResponse, error)
 	GetWorld(ctx context.Context, in *GetWorldRequest, opts ...grpc.CallOption) (*GetWorldResponse, error)
+	GetWorldByName(ctx context.Context, in *GetWorldByNameRequest, opts ...grpc.CallOption) (*GetWorldByNameResponse, error)
 	ReplaceWorldSnapshot(ctx context.Context, in *ReplaceWorldSnapshotRequest, opts ...grpc.CallOption) (*ReplaceWorldSnapshotResponse, error)
 	DeleteWorld(ctx context.Context, in *DeleteWorldRequest, opts ...grpc.CallOption) (*DeleteWorldResponse, error)
 	ListWorlds(ctx context.Context, in *ListWorldsRequest, opts ...grpc.CallOption) (*ListWorldsResponse, error)
@@ -61,6 +63,16 @@ func (c *worldServiceClient) GetWorld(ctx context.Context, in *GetWorldRequest, 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetWorldResponse)
 	err := c.cc.Invoke(ctx, WorldService_GetWorld_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServiceClient) GetWorldByName(ctx context.Context, in *GetWorldByNameRequest, opts ...grpc.CallOption) (*GetWorldByNameResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetWorldByNameResponse)
+	err := c.cc.Invoke(ctx, WorldService_GetWorldByName_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +117,7 @@ func (c *worldServiceClient) ListWorlds(ctx context.Context, in *ListWorldsReque
 type WorldServiceServer interface {
 	CreateWorld(context.Context, *CreateWorldRequest) (*CreateWorldResponse, error)
 	GetWorld(context.Context, *GetWorldRequest) (*GetWorldResponse, error)
+	GetWorldByName(context.Context, *GetWorldByNameRequest) (*GetWorldByNameResponse, error)
 	ReplaceWorldSnapshot(context.Context, *ReplaceWorldSnapshotRequest) (*ReplaceWorldSnapshotResponse, error)
 	DeleteWorld(context.Context, *DeleteWorldRequest) (*DeleteWorldResponse, error)
 	ListWorlds(context.Context, *ListWorldsRequest) (*ListWorldsResponse, error)
@@ -123,6 +136,9 @@ func (UnimplementedWorldServiceServer) CreateWorld(context.Context, *CreateWorld
 }
 func (UnimplementedWorldServiceServer) GetWorld(context.Context, *GetWorldRequest) (*GetWorldResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetWorld not implemented")
+}
+func (UnimplementedWorldServiceServer) GetWorldByName(context.Context, *GetWorldByNameRequest) (*GetWorldByNameResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetWorldByName not implemented")
 }
 func (UnimplementedWorldServiceServer) ReplaceWorldSnapshot(context.Context, *ReplaceWorldSnapshotRequest) (*ReplaceWorldSnapshotResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReplaceWorldSnapshot not implemented")
@@ -186,6 +202,24 @@ func _WorldService_GetWorld_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorldServiceServer).GetWorld(ctx, req.(*GetWorldRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldService_GetWorldByName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorldByNameRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).GetWorldByName(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_GetWorldByName_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).GetWorldByName(ctx, req.(*GetWorldByNameRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -258,6 +292,10 @@ var WorldService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWorld",
 			Handler:    _WorldService_GetWorld_Handler,
+		},
+		{
+			MethodName: "GetWorldByName",
+			Handler:    _WorldService_GetWorldByName_Handler,
 		},
 		{
 			MethodName: "ReplaceWorldSnapshot",

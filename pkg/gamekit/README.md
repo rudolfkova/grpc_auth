@@ -102,9 +102,11 @@ gamekit.TypeMove      // "move"
 gamekit.TypeHit       // "hit"
 gamekit.TypeSpawnTile // "spawn_tile"
 gamekit.TypeClearTile // "clear_tile"
-gamekit.TypeState     // "state"
-gamekit.TypeReject    // "reject"
-gamekit.TypeError     // "error"
+gamekit.TypeSaveWorld // "save_world"
+gamekit.TypeState           // "state"
+gamekit.TypeReject          // "reject"
+gamekit.TypeError           // "error"
+gamekit.TypeSaveWorldResult // "save_world_result"
 ```
 
 Каждое сообщение клиент → сервер (и часть ответов):
@@ -159,6 +161,16 @@ payload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 2, Y: 3, Layer: 0, Rotatio
 payload, _ := json.Marshal(gamekit.TileClearIntent{X: 2, Y: 3, Layer: 1})
 ```
 
+**Сохранение мира** (только если game-service разрешает вашему `user_id`; см. `game-service/README.md`)
+
+```json
+{ "name": "Мой мир", "description": "опционально" }
+```
+
+```go
+payload, _ := json.Marshal(gamekit.SaveWorldIntent{Name: "Мой мир", Description: "опционально"})
+```
+
 Сборка конверта:
 
 ```go
@@ -203,6 +215,8 @@ if env.Type == gamekit.TypeState {
 ## Кратко для нейросети (контекст задачи)
 
 > Нужно писать **Go-клиент** к **game-service** по **WebSocket**, опционально с **Ark ECS** локально.  
-> Все **имена компонентов игрока/тайла** и **формы JSON** для `move` / `hit` / `spawn_tile` / `clear_tile` и для `state` брать из модуля **`github.com/rudolfkova/grpc_auth/pkg/gamekit`**.  
+Сохранение мира (game-service → world-service): `TypeSaveWorld` / `SaveWorldIntent`, ответ `TypeSaveWorldResult` / `SaveWorldResultPayload`; константа **`SnapshotSchemaVersion`**.
+
+> Все **имена компонентов игрока/тайла** и **формы JSON** для `move` / `hit` / `spawn_tile` / `clear_tile` / `save_world` и для `state` брать из модуля **`github.com/rudolfkova/grpc_auth/pkg/gamekit`**.  
 > Подключение: `go get github.com/rudolfkova/grpc_auth/pkg/gamekit@main` или в монорепо `replace ... => ../pkg/gamekit`.  
 > Не дублировать struct’ы компонентов в клиенте — только импорт `gamekit`.

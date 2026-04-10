@@ -80,6 +80,26 @@ func (s *serverAPI) GetWorld(ctx context.Context, req *worldv1.GetWorldRequest) 
 	return &worldv1.GetWorldResponse{World: toProto(w)}, nil
 }
 
+func (s *serverAPI) GetWorldByName(ctx context.Context, req *worldv1.GetWorldByNameRequest) (*worldv1.GetWorldByNameResponse, error) {
+	name := req.GetName()
+	w, err := s.svc.GetByName(ctx, name)
+	if err != nil {
+		s.log.WarnContext(ctx, "GetWorldByName failed",
+			"name", name,
+			"err", err,
+		)
+		return nil, mapErr(err)
+	}
+	s.log.InfoContext(ctx, "world retrieved by name",
+		"world_id", w.ID,
+		"name", w.Name,
+		"version", w.Version,
+		"schema_version", w.SchemaVersion,
+		"snapshot_bytes", len(w.Snapshot),
+	)
+	return &worldv1.GetWorldByNameResponse{World: toProto(w)}, nil
+}
+
 func (s *serverAPI) ReplaceWorldSnapshot(ctx context.Context, req *worldv1.ReplaceWorldSnapshotRequest) (*worldv1.ReplaceWorldSnapshotResponse, error) {
 	id := req.GetId()
 	w, err := s.svc.ReplaceSnapshot(ctx, id, req.GetSnapshot(), req.GetSchemaVersion(), req.GetExpectedVersion())

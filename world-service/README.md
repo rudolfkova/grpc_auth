@@ -32,7 +32,11 @@ make gen-world
 
 ## Миграции
 
-`migrations/` — Postgres, БД `world_db` (см. `docker-compose`).
+`migrations/` — Postgres, БД `world_db` (см. `docker-compose`). В т.ч. уникальность **непустого** `name` для upsert по имени (`GetWorldByName` + create/replace).
+
+## Поиск по имени
+
+RPC **`GetWorldByName`** — вернуть мир по полю `name` (после нормализации пробелов). Подробности в [`CONTRACT.md`](CONTRACT.md).
 
 ## Postman (gRPC)
 

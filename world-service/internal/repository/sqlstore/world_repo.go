@@ -59,6 +59,22 @@ func (r *WorldRepo) GetByID(ctx context.Context, id string) (model.World, error)
 	return w, nil
 }
 
+func (r *WorldRepo) GetByName(ctx context.Context, name string) (model.World, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, name, description, snapshot, schema_version, version, created_at, updated_at
+		FROM worlds WHERE name = $1
+	`, name)
+	var w model.World
+	err := row.Scan(&w.ID, &w.Name, &w.Description, &w.Snapshot, &w.SchemaVersion, &w.Version, &w.CreatedAt, &w.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return model.World{}, repository.ErrNotFound
+	}
+	if err != nil {
+		return model.World{}, err
+	}
+	return w, nil
+}
+
 func (r *WorldRepo) ReplaceSnapshot(ctx context.Context, id string, snapshot []byte, schemaVersion int32, expectedVersion int64) (model.World, error) {
 	if snapshot == nil {
 		snapshot = []byte{}

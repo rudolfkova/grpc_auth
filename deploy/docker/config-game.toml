@@ -9,3 +9,5 @@ world_id = ""
 world_service_addr = "world-service:50054"
 # Если в world-service задан service_token; можно задать через WORLD_SERVICE_TOKEN.
 world_service_token = ""
+# Только этот user_id (из JWT при подключении к WS) может отправлять type "save_world". Env: SAVE_WORLD_ADMIN_USER_ID.
+save_world_admin_user_id = 1

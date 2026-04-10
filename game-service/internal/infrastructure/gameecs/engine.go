@@ -9,6 +9,7 @@ import (
 	"game/internal/domain/ports"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
+	arkserde "github.com/mlange-42/ark-serde"
 	"github.com/mlange-42/ark/ecs"
 )
 
@@ -58,7 +59,7 @@ func (e *Engine) ProcessTick(actions []models.Action) []models.Event {
 	type statePayload struct {
 		Players []gamekit.Player `json:"players"`
 		Tiles   []gamekit.Tile   `json:"tiles"`
-		TickAt  time.Time       `json:"tick_at"`
+		TickAt  time.Time        `json:"tick_at"`
 	}
 	emit.Broadcast("state", statePayload{
 		Players: players,
@@ -67,6 +68,13 @@ func (e *Engine) ProcessTick(actions []models.Action) []models.Event {
 	})
 
 	return emit.Events()
+}
+
+// SerializeWorld сериализует текущий ECS-мир (ark-serde JSON).
+func (e *Engine) SerializeWorld() ([]byte, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return arkserde.Serialize(e.world)
 }
 
 // EnsurePlayerEntity возвращает сущность игрока по user_id, создавая при необходимости.

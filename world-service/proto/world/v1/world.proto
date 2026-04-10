@@ -8,6 +8,7 @@ option go_package = "world/proto/world/v1;worldv1";
 service WorldService {
   rpc CreateWorld(CreateWorldRequest) returns (CreateWorldResponse);
   rpc GetWorld(GetWorldRequest) returns (GetWorldResponse);
+  rpc GetWorldByName(GetWorldByNameRequest) returns (GetWorldByNameResponse);
   rpc ReplaceWorldSnapshot(ReplaceWorldSnapshotRequest) returns (ReplaceWorldSnapshotResponse);
   rpc DeleteWorld(DeleteWorldRequest) returns (DeleteWorldResponse);
   rpc ListWorlds(ListWorldsRequest) returns (ListWorldsResponse);
@@ -42,6 +43,14 @@ message GetWorldRequest {
 }
 
 message GetWorldResponse {
+  World world = 1;
+}
+
+message GetWorldByNameRequest {
+  string name = 1;
+}
+
+message GetWorldByNameResponse {
   World world = 1;
 }
 
