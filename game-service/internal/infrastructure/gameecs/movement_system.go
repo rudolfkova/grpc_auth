@@ -11,13 +11,13 @@ import (
 // MovementSystem обрабатывает действия type=move.
 type MovementSystem struct {
 	mapper     *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
-	tileFilter *ecs.Filter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid]
+	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
 }
 
 // NewMovementSystem создаёт систему движения с общим mapper мира.
 func NewMovementSystem(
 	mapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
-	tileFilter *ecs.Filter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid],
+	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 ) *MovementSystem {
 	return &MovementSystem{mapper: mapper, tileFilter: tileFilter}
 }
@@ -64,7 +64,7 @@ func (s *MovementSystem) blockedCell(x, y int) bool {
 	q := s.tileFilter.Query()
 	defer q.Close()
 	for q.Next() {
-		pos, _, solid := q.Get()
+		pos, _, _, _, solid := q.Get()
 		if pos.X == x && pos.Y == y && solid.Blocks {
 			return true
 		}

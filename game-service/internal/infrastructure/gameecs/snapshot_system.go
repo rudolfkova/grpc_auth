@@ -9,13 +9,13 @@ import (
 // SnapshotSystem строит снимок игроков и тайлов.
 type SnapshotSystem struct {
 	playerFilter *ecs.Filter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
-	tileFilter   *ecs.Filter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid]
+	tileFilter   *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
 }
 
 // NewSnapshotSystem создаёт систему снимка.
 func NewSnapshotSystem(
 	playerFilter *ecs.Filter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
-	tileFilter *ecs.Filter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid],
+	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 ) *SnapshotSystem {
 	return &SnapshotSystem{playerFilter: playerFilter, tileFilter: tileFilter}
 }
@@ -40,12 +40,14 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 	defer tq.Close()
 	tiles := make([]gamekit.Tile, 0, 64)
 	for tq.Next() {
-		pos, tex, sol := tq.Get()
+		pos, lay, face, tex, sol := tq.Get()
 		tiles = append(tiles, gamekit.Tile{
-			X:       pos.X,
-			Y:       pos.Y,
-			Texture: tex.Name,
-			Blocks:  sol.Blocks,
+			X:        pos.X,
+			Y:        pos.Y,
+			Layer:    lay.Z,
+			Rotation: face.RotationQuarter,
+			Texture:  tex.Name,
+			Blocks:   sol.Blocks,
 		})
 	}
 	ctx.Tiles = tiles

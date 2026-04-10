@@ -33,3 +33,13 @@ type TileTexture struct {
 type TileSolid struct {
 	Blocks bool `json:"blocks"`
 }
+
+// TileLayer — индекс слоя в клетке (x,y). Несколько сущностей с разными Z могут стоять в одной клетке.
+type TileLayer struct {
+	Z int `json:"layer"`
+}
+
+// TileFacing — ориентация тайла: поворот на плоскости, в четвертях оборота по часовой стрелке (0..3 → 0°, 90°, 180°, 270°).
+type TileFacing struct {
+	RotationQuarter int `json:"rotation"`
+}

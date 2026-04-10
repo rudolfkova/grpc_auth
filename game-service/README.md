@@ -25,7 +25,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 | Поле | Тип | Обязательно | Описание |
 |------|-----|-------------|----------|
 | `service` | string | да | Должно быть `"game"`. Иначе приходит `reject` с `reason: "wrong_service"`. |
-| `type` | string | да | Тип действия (движок не валидирует список на уровне порта; типичные: `move`, `hit`, `spawn_tile`). Пустая строка → `reject` с `reason: "missing_type"`. |
+| `type` | string | да | Тип действия (движок не валидирует список на уровне порта; типичные: `move`, `hit`, `spawn_tile`, `clear_tile`). Пустая строка → `reject` с `reason: "missing_type"`. |
 | `payload` | JSON (raw) | нет | Произвольный JSON; интерпретация — в доменном слое. |
 
 Примеры:
@@ -50,17 +50,27 @@ WebSocket-сервис игрового мира: принимает дейст�
 }
 ```
 
-**Тайл (редактор)** — `type: "spawn_tile"`. В клетке `(x,y)` удаляется предыдущий тайл (если был) и создаётся новый сущностью ECS: позиция, имя текстуры, флаг коллизии. Проверок прав пока нет.
+**Тайл (редактор)** — `type: "spawn_tile"`. В клетке `(x,y)` на заданном **слое** `layer` удаляется предыдущий тайл на этом же слое (если был) и создаётся новый: позиция, слой, поворот, текстура, коллизия. Другие слои в той же клетке не трогаются (например, трава на слое `0` и цветок на слое `1`). Поля `layer` и `rotation` можно опустить — по умолчанию `0`. `rotation` — четверти оборота по часовой стрелке (`0`…`3`); любое целое приводится к `0..3`. Проверок прав пока нет.
 
 ```json
 {
   "service": "game",
   "type": "spawn_tile",
-  "payload": { "x": 2, "y": 3, "texture": "wall", "blocks": true }
+  "payload": { "x": 2, "y": 3, "layer": 0, "rotation": 1, "texture": "wall", "blocks": true }
 }
 ```
 
-Невалидный `payload` для `move`/`hit`/`spawn_tile` движок молча игнорирует (без `reject`); отклонения по протоколу — только перечисленные `reason` выше.
+**Очистка слоя** — `type: "clear_tile"`. Удаляются все тайлы в клетке `(x,y)` на указанном `layer`; остальные слои в клетке сохраняются.
+
+```json
+{
+  "service": "game",
+  "type": "clear_tile",
+  "payload": { "x": 2, "y": 3, "layer": 1 }
+}
+```
+
+Невалидный `payload` для `move`/`hit`/`spawn_tile`/`clear_tile` движок молча игнорирует (без `reject`); отклонения по протоколу — только перечисленные `reason` выше.
 
 Если внутренняя очередь действий переполнена, действие **не принимается**; клиент получает отдельное сообщение `reject` (см. ниже).
 
@@ -71,7 +81,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 - **Broadcast:** события без привязки к одному пользователю уходят всем подключённым клиентам.
 - **Точечно:** если у события задан получатель (по `user_id`), сообщение получают только соединения этого пользователя.
 
-Типы событий задаёт движок. Событие **`state`** (broadcast каждый тик): `payload` содержит **`players`** (массив `{id,x,y,hp}`), **`tiles`** (массив `{x,y,texture,blocks}`), **`tick_at`**. Если `blocks: true`, в клетку нельзя войти действием `move`.
+Типы событий задаёт движок. Событие **`state`** (broadcast каждый тик): `payload` содержит **`players`** (массив `{id,x,y,hp}`), **`tiles`** (массив `{x,y,layer,rotation,texture,blocks}`), **`tick_at`**. Если у любого тайла в клетке `blocks: true`, в клетку нельзя войти действием `move`.
 
 ### Отклонение запроса (`type: "reject"`)
 
@@ -128,15 +138,17 @@ WebSocket-сервис игрового мира: принимает дейст�
 |-----------|------------|
 | `PlayerRef` | `UserID` — связь с игроком по id из JWT |
 | `GridPos` | Целочисленные `X`, `Y` (игроки и тайлы на одной сетке) |
+| `TileLayer` | `Z` — индекс слоя в клетке; несколько сущностей с разными `Z` в одной `(x,y)` |
+| `TileFacing` | `RotationQuarter` — ориентация тайла, четверти по часовой стрелке `0..3` |
 | `TileTexture` | `Name` — строка-идентификатор текстуры для клиента |
-| `TileSolid` | `Blocks` — запрет входа в клетку при `move` |
+| `TileSolid` | `Blocks` — запрет входа в клетку при `move` (если хотя бы один тайл в клетке блокирует) |
 | `Speed` | `MaxStep` — допустимый диапазон `dx`/`dy` за один `move` по каждой оси: **[-MaxStep, MaxStep]**; при спавне **1**. При `MaxStep <= 0` движение не применяется. |
 | `Health` | `HP`; старт **`gamekit.DefaultPlayerHP`** (10) |
 
 **Системы** (`internal/infrastructure/gameecs`, интерфейс `System` — `Update(*TickContext)`):
 
 - **`SystemRegistry`** — per-action системы на каждое действие, затем post-tick.
-- **`MovementSystem`**, **`DamageSystem`**, **`TileSpawnSystem`** — игроки и тайлы.
+- **`MovementSystem`**, **`DamageSystem`**, **`TileSpawnSystem`**, **`TileClearSystem`** — игроки и тайлы.
 - **`SnapshotSystem`** — заполняет `TickContext.Players` и `TickContext.Tiles` для `state`.
 
 **`TickContext`** и **`PlayerEntitySink`** — внутри `gameecs`; `*gameecs.Engine` реализует `ports.GameEngine` и `PlayerEntitySink`.
@@ -157,4 +169,4 @@ go build -o /tmp/game-service ./cmd/game-service
 
 **Загрузка из world-service:** если **`world_id` непустой**, при старте выполняется gRPC **`GetWorld`** на **`world_service_addr`** (TOML или **`WORLD_SERVICE_ADDR`**). Опционально **`world_service_token`** / **`WORLD_SERVICE_TOKEN`** (`x-service-token`). Поле **`snapshot`** (bytes) должно быть **JSON от [ark-serde](https://github.com/mlange-42/ark-serde)** — тот же формат, что даёт `arkserde.Serialize(world)` для `*ecs.World` с зарегистрированными компонентами **`world.PlayerRef`**, **`world.GridPos`**, **`world.Speed`**, **`world.Health`**. Десериализация: `arkserde.Deserialize` в пустой мир, затем восстанавливается индекс `user_id → entity` (дубликаты `PlayerRef.UserID` или `UserID == 0` — ошибка старта). Пустой `snapshot` — пустой мир. Старый самодельный JSON вида `{"players":[...]}` **больше не поддерживается**. Если задан `world_id`, но пустой `world_service_addr`, процесс завершится с ошибкой.
 
-Снимок для БД можно получить из отладочного/утилитарного кода, вызвав `arkserde.Serialize` на том же наборе компонентов, что и движок (см. тест `TestNewEngine_fromArkSerdeSnapshot`).
+Снимок для БД можно получить из отладочного/утилитарного кода, вызвав `arkserde.Serialize` на том же наборе компонентов, что и движок (см. тест `TestNewEngine_fromArkSerdeSnapshot`). Если в мире есть **тайлы**, в снимке должны быть зарегистрированы те же пять компонентов, что и в движке: `GridPos`, `TileLayer`, `TileFacing`, `TileTexture`, `TileSolid` (все из `gamekit`); старый формат с тремя компонентами на тайл больше не совместим.

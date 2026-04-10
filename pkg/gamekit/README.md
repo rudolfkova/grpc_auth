@@ -81,12 +81,14 @@ import "github.com/rudolfkova/grpc_auth/pkg/gamekit"
 | `gamekit.Health` | `HP` |
 | `gamekit.DefaultPlayerHP` | Константа стартового HP на сервере |
 | `gamekit.TileTexture` | `Name` — строка-идентификатор текстуры у клиента |
-| `gamekit.TileSolid` | `Blocks` — если `true`, сервер не пускает `move` в эту клетку |
+| `gamekit.TileSolid` | `Blocks` — если `true`, участвует в блокировке клетки для `move` |
+| `gamekit.TileLayer` | `Z` — слой в клетке `(x,y)`; несколько тайлов в одной клетке различаются по `Z` |
+| `gamekit.TileFacing` | `RotationQuarter` — поворот, четверти по часовой стрелке `0..3` |
 
 На **сервере** зарегистрированы мапперы:
 
 - `Map4[PlayerRef, GridPos, Speed, Health]` — игроки  
-- `Map3[GridPos, TileTexture, TileSolid]` — тайлы  
+- `Map5[GridPos, TileLayer, TileFacing, TileTexture, TileSolid]` — тайлы  
 
 Клиент, который **симулирует или отображает** тот же мир через Ark, должен использовать **те же типы** в своих `MapN` / `FilterN`, иначе ark-serde и контракт разъедутся.
 
@@ -99,6 +101,7 @@ gamekit.ServiceGame   // "game"
 gamekit.TypeMove      // "move"
 gamekit.TypeHit       // "hit"
 gamekit.TypeSpawnTile // "spawn_tile"
+gamekit.TypeClearTile // "clear_tile"
 gamekit.TypeState     // "state"
 gamekit.TypeReject    // "reject"
 gamekit.TypeError     // "error"
@@ -136,14 +139,24 @@ payload, _ := json.Marshal(gamekit.MoveIntent{DX: 1, DY: 0})
 { "target_id": 42, "damage": 2 }
 ```
 
-**Спавн тайла (редактор)**
+**Спавн тайла (редактор)** — заменяет только тайлы в `(x,y)` на слое `layer` (по умолчанию `0`). `rotation` — четверти по часовой стрелке, по умолчанию `0`; см. `gamekit.NormalizeTileRotationQuarter`.
 
 ```json
-{ "x": 2, "y": 3, "texture": "wall", "blocks": true }
+{ "x": 2, "y": 3, "layer": 0, "rotation": 0, "texture": "wall", "blocks": true }
 ```
 
 ```go
-payload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 2, Y: 3, Texture: "wall", Blocks: true})
+payload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 2, Y: 3, Layer: 0, Rotation: 0, Texture: "wall", Blocks: true})
+```
+
+**Очистка слоя в клетке**
+
+```json
+{ "x": 2, "y": 3, "layer": 1 }
+```
+
+```go
+payload, _ := json.Marshal(gamekit.TileClearIntent{X: 2, Y: 3, Layer: 1})
 ```
 
 Сборка конверта:
@@ -174,7 +187,7 @@ if env.Type == gamekit.TypeState {
 ```
 
 - `Players` — `[]gamekit.Player` (`id`, `x`, `y`, `hp`)  
-- `Tiles` — `[]gamekit.Tile` (`x`, `y`, `texture`, `blocks`)  
+- `Tiles` — `[]gamekit.Tile` (`x`, `y`, `layer`, `rotation`, `texture`, `blocks`)  
 - `TickAt` — `time.Time` (JSON с сервера в формате времени Go)
 
 ---
@@ -190,6 +203,6 @@ if env.Type == gamekit.TypeState {
 ## Кратко для нейросети (контекст задачи)
 
 > Нужно писать **Go-клиент** к **game-service** по **WebSocket**, опционально с **Ark ECS** локально.  
-> Все **имена компонентов игрока/тайла** и **формы JSON** для `move` / `hit` / `spawn_tile` и для `state` брать из модуля **`github.com/rudolfkova/grpc_auth/pkg/gamekit`**.  
+> Все **имена компонентов игрока/тайла** и **формы JSON** для `move` / `hit` / `spawn_tile` / `clear_tile` и для `state` брать из модуля **`github.com/rudolfkova/grpc_auth/pkg/gamekit`**.  
 > Подключение: `go get github.com/rudolfkova/grpc_auth/pkg/gamekit@main` или в монорепо `replace ... => ../pkg/gamekit`.  
 > Не дублировать struct’ы компонентов в клиенте — только импорт `gamekit`.

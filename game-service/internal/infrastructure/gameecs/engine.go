@@ -31,8 +31,8 @@ func NewEngine(snapshot []byte) (*Engine, error) {
 	w := ecs.NewWorld()
 	playerMapper := ecs.NewMap4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](w)
 	playerFilter := ecs.NewFilter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](w)
-	tileMapper := ecs.NewMap3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid](w)
-	tileFilter := ecs.NewFilter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid](w)
+	tileMapper := ecs.NewMap5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
+	tileFilter := ecs.NewFilter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter)
 	e := &Engine{
 		world:        w,

@@ -410,7 +410,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-Подробный протокол игры (типы `move`, `hit`, `reject`, логирование) — в репозитории: **`game-service/README.md`**.
+Подробный протокол игры (типы `move`, `hit`, `spawn_tile`, `clear_tile`, `state`, `reject`, логирование) — в репозитории: **`game-service/README.md`** и **`pkg/gamekit/README.md`**.
 
 ---
 

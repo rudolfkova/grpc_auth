@@ -18,14 +18,15 @@ func NewSystemRegistry(
 	w *ecs.World,
 	playerMapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
 	playerFilter *ecs.Filter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
-	tileMapper *ecs.Map3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid],
-	tileFilter *ecs.Filter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid],
+	tileMapper *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
+	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 ) *SystemRegistry {
 	return &SystemRegistry{
 		perAction: []System{
 			NewMovementSystem(playerMapper, tileFilter),
 			NewDamageSystem(playerMapper),
 			NewTileSpawnSystem(w, tileMapper, tileFilter),
+			NewTileClearSystem(w, tileFilter),
 		},
 		postTick: []System{
 			NewSnapshotSystem(playerFilter, tileFilter),

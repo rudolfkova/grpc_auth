@@ -8,18 +8,18 @@ import (
 	"github.com/mlange-42/ark/ecs"
 )
 
-// TileSpawnSystem обрабатывает type=spawn_tile: заменяет тайл в клетке (x,y) и создаёт сущность.
+// TileSpawnSystem обрабатывает type=spawn_tile: в клетке (x,y) на слое layer заменяет тайл и создаёт сущность.
 type TileSpawnSystem struct {
 	world  *ecs.World
-	tiles  *ecs.Map3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid]
-	filter *ecs.Filter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid]
+	tiles  *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
+	filter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
 }
 
 // NewTileSpawnSystem ...
 func NewTileSpawnSystem(
 	w *ecs.World,
-	tiles *ecs.Map3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid],
-	filter *ecs.Filter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid],
+	tiles *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
+	filter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 ) *TileSpawnSystem {
 	return &TileSpawnSystem{world: w, tiles: tiles, filter: filter}
 }
@@ -35,22 +35,25 @@ func (s *TileSpawnSystem) Update(ctx *TickContext) {
 		return
 	}
 
-	s.removeTilesAt(in.X, in.Y)
+	rot := gamekit.NormalizeTileRotationQuarter(in.Rotation)
+	s.removeTilesAtLayer(in.X, in.Y, in.Layer)
 	s.tiles.NewEntity(
 		&gamekit.GridPos{X: in.X, Y: in.Y},
+		&gamekit.TileLayer{Z: in.Layer},
+		&gamekit.TileFacing{RotationQuarter: rot},
 		&gamekit.TileTexture{Name: in.Texture},
 		&gamekit.TileSolid{Blocks: in.Blocks},
 	)
 }
 
-func (s *TileSpawnSystem) removeTilesAt(x, y int) {
+func (s *TileSpawnSystem) removeTilesAtLayer(x, y, layer int) {
 	q := s.filter.Query()
 	defer q.Close()
 
 	var rm []ecs.Entity
 	for q.Next() {
-		pos, _, _ := q.Get()
-		if pos.X == x && pos.Y == y {
+		pos, lay, _, _, _ := q.Get()
+		if pos.X == x && pos.Y == y && lay.Z == layer {
 			rm = append(rm, q.Entity())
 		}
 	}

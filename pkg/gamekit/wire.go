@@ -12,6 +12,7 @@ const (
 	TypeMove      = "move"
 	TypeHit       = "hit"
 	TypeSpawnTile = "spawn_tile"
+	TypeClearTile = "clear_tile"
 	TypeState     = "state"
 	TypeReject    = "reject"
 	TypeError     = "error"
@@ -37,11 +38,21 @@ type HitIntent struct {
 }
 
 // TileSpawnIntent — payload для TypeSpawnTile.
+// Layer по умолчанию 0; Rotation — четверти оборота по часовой стрелке (любое целое нормализуется к 0..3).
 type TileSpawnIntent struct {
-	X       int    `json:"x"`
-	Y       int    `json:"y"`
-	Texture string `json:"texture"`
-	Blocks  bool   `json:"blocks"`
+	X        int    `json:"x"`
+	Y        int    `json:"y"`
+	Layer    int    `json:"layer"`
+	Rotation int    `json:"rotation"`
+	Texture  string `json:"texture"`
+	Blocks   bool   `json:"blocks"`
+}
+
+// TileClearIntent — payload для TypeClearTile: удалить все тайлы в клетке (x,y) на указанном слое.
+type TileClearIntent struct {
+	X     int `json:"x"`
+	Y     int `json:"y"`
+	Layer int `json:"layer"`
 }
 
 // Player — элемент массива players в payload события TypeState.
@@ -54,10 +65,12 @@ type Player struct {
 
 // Tile — элемент массива tiles в payload события TypeState.
 type Tile struct {
-	X       int    `json:"x"`
-	Y       int    `json:"y"`
-	Texture string `json:"texture"`
-	Blocks  bool   `json:"blocks"`
+	X        int    `json:"x"`
+	Y        int    `json:"y"`
+	Layer    int    `json:"layer"`
+	Rotation int    `json:"rotation"`
+	Texture  string `json:"texture"`
+	Blocks   bool   `json:"blocks"`
 }
 
 // StatePayload — форма payload у TypeState (для json.Unmarshal на клиенте).
@@ -65,4 +78,9 @@ type StatePayload struct {
 	Players []Player  `json:"players"`
 	Tiles   []Tile    `json:"tiles"`
 	TickAt  time.Time `json:"tick_at"`
+}
+
+// NormalizeTileRotationQuarter приводит произвольное целое к диапазону 0..3 (четверти оборота по часовой стрелке).
+func NormalizeTileRotationQuarter(r int) int {
+	return ((r % 4) + 4) % 4
 }

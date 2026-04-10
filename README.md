@@ -362,7 +362,7 @@ make start-game
 
 Поля:
 - `service`: всегда `"game"` для игровых событий
-- `type`: тип действия (`"move"` для MVP)
+- `type`: тип действия (`move`, `hit`, `spawn_tile`, `clear_tile`, … — см. `game-service/README.md` и `pkg/gamekit`)
 - `payload`: данные действия
 
 ### Move payload
@@ -380,14 +380,20 @@ make start-game
 
 ### Snapshot (сервер -> клиент)
 
+Каждый тик приходит `type: "state"` с полями `players`, `tiles`, `tick_at`. У тайла есть слой и поворот для стеков и ориентации.
+
 ```json
 {
   "service": "game",
   "type": "state",
   "payload": {
     "players": [
-      { "id": 1, "x": 10, "y": 12 }
-    ]
+      { "id": 1, "x": 10, "y": 12, "hp": 10 }
+    ],
+    "tiles": [
+      { "x": 0, "y": 0, "layer": 0, "rotation": 0, "texture": "grass", "blocks": false }
+    ],
+    "tick_at": "2026-04-09T12:00:00Z"
   }
 }
 ```
@@ -435,7 +441,7 @@ make start-game
 2. Сохранить `access_token` и `refresh_token`
 3. Открыть chat WS: `/ws/subscribe?token=<access_token>`
 4. Открыть game WS: `/ws/game?token=<access_token>`
-5. Для игры отправлять `{"service":"game","type":"move","payload":{"dx":...,"dy":...}}`
+5. Для игры отправлять JSON-конверты с `service: "game"` (например `move`, `spawn_tile`, `clear_tile` — см. `game-service/README.md`)
 6. Для чата использовать REST: `POST /chat/send`, `GET /chat/messages`, `GET /chat/chats`
 7. При `401` делать `POST /auth/refresh` и повторять запрос
 8. При выходе пользователя: `POST /auth/logout`

@@ -61,8 +61,57 @@ func TestEngine_spawnTileAppearsInState(t *testing.T) {
 	if err := json.Unmarshal(body, &st); err != nil {
 		t.Fatal(err)
 	}
-	if len(st.Tiles) != 1 || st.Tiles[0].X != 3 || st.Tiles[0].Y != 4 || st.Tiles[0].Texture != "wall" || !st.Tiles[0].Blocks {
+	if len(st.Tiles) != 1 || st.Tiles[0].X != 3 || st.Tiles[0].Y != 4 || st.Tiles[0].Layer != 0 || st.Tiles[0].Rotation != 0 ||
+		st.Tiles[0].Texture != "wall" || !st.Tiles[0].Blocks {
 		t.Fatalf("tiles: %+v", st.Tiles)
+	}
+}
+
+func TestEngine_spawnTileLayersAndClearTile(t *testing.T) {
+	e, err := NewEngine(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grass, _ := json.Marshal(gamekit.TileSpawnIntent{X: 1, Y: 1, Layer: 0, Texture: "grass", Blocks: false})
+	flower, _ := json.Marshal(gamekit.TileSpawnIntent{X: 1, Y: 1, Layer: 1, Texture: "flower", Blocks: false})
+	e.ProcessTick([]models.Action{
+		{PlayerID: 1, Type: "spawn_tile", Payload: grass},
+		{PlayerID: 1, Type: "spawn_tile", Payload: flower},
+	})
+	clearPayload, _ := json.Marshal(gamekit.TileClearIntent{X: 1, Y: 1, Layer: 1})
+	evs := e.ProcessTick([]models.Action{{PlayerID: 1, Type: "clear_tile", Payload: clearPayload}})
+	if len(evs) != 1 || evs[0].Type != "state" {
+		t.Fatalf("events: %+v", evs)
+	}
+	body, err := json.Marshal(evs[0].Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st struct {
+		Tiles []gamekit.Tile `json:"tiles"`
+	}
+	if err := json.Unmarshal(body, &st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Tiles) != 1 || st.Tiles[0].Layer != 0 || st.Tiles[0].Texture != "grass" {
+		t.Fatalf("after clear layer 1: %+v", st.Tiles)
+	}
+}
+
+func TestEngine_spawnTileRotationNormalized(t *testing.T) {
+	e, err := NewEngine(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 0, Y: 0, Layer: 0, Rotation: 5, Texture: "arrow", Blocks: false})
+	evs := e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	body, _ := json.Marshal(evs[0].Payload)
+	var st struct {
+		Tiles []gamekit.Tile `json:"tiles"`
+	}
+	_ = json.Unmarshal(body, &st)
+	if len(st.Tiles) != 1 || st.Tiles[0].Rotation != 1 {
+		t.Fatalf("rotation want 1, got %+v", st.Tiles)
 	}
 }
 
