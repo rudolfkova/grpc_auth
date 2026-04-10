@@ -34,6 +34,7 @@ services:
         set -e
         psql -h 127.0.0.1 -U messenger -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='auth_db'" | grep -q 1 || psql -h 127.0.0.1 -U messenger -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE auth_db OWNER messenger"
         psql -h 127.0.0.1 -U messenger -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='chat_db'" | grep -q 1 || psql -h 127.0.0.1 -U messenger -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE chat_db OWNER messenger"
+        psql -h 127.0.0.1 -U messenger -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='world_db'" | grep -q 1 || psql -h 127.0.0.1 -U messenger -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE world_db OWNER messenger"
     restart: "no"
 
   redis:
@@ -84,6 +85,24 @@ services:
       [
         "-path", "/migrations/chat",
         "-database", "postgres://messenger:messenger@127.0.0.1:5432/chat_db?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
+
+  migrate-world:
+    image: migrate/migrate:latest
+    network_mode: "service:postgres"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate-chat:
+        condition: service_completed_successfully
+    volumes:
+      - ./world-service/migrations:/migrations/world:ro
+    command:
+      [
+        "-path", "/migrations/world",
+        "-database", "postgres://messenger:messenger@127.0.0.1:5432/world_db?sslmode=disable",
         "up"
       ]
     restart: "no"
@@ -158,6 +177,24 @@ services:
       - ./deploy/docker/config-game.toml:/configs/config-game.toml:ro
     ports:
       - "50053:50053"
+
+  world-service:
+    build:
+      context: ./world-service
+      dockerfile: Dockerfile
+    container_name: grpc-world-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["-config-path", "/configs/config-world.toml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate-world:
+        condition: service_completed_successfully
+    volumes:
+      - ./deploy/docker/config-world.toml:/configs/config-world.toml:ro
+    ports:
+      - "50054:50054"
 
 volumes:
   postgres-data:

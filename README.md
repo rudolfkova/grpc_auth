@@ -10,6 +10,7 @@
 | **chat-service** | Чаты, сообщения, real-time push через gRPC stream | `:50052` |
 | **gateway** | REST HTTP + WebSocket фасад над gRPC сервисами | `:8080` |
 | **game-service** | Игровой loop + WS обработка intents/snapshots | `:50053` |
+| **world-service** | Хранение снапшотов игровых миров (gRPC, внутренний) | `:50054` |
 Порты можно менять в конфигах. В будущем планируется перенос из .toml в .env чтобы было проще деплоить.
 
 ## Стек

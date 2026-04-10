@@ -9,4 +9,4 @@ require (
 	github.com/phsym/console-slog v0.3.1
 )
 
-require github.com/mlange-42/ark v0.8.0 // indirect
+require github.com/mlange-42/ark v0.8.0

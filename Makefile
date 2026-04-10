@@ -1,5 +1,5 @@
 # Сборка сервисов.
-.PHONY: build build-auth build-chat build-gateway build-game start start-auth start-chat start-gateway start-game docker-up docker-down docker-logs docker-reset docker-fix-iptables
+.PHONY: build build-auth build-chat build-gateway build-game start start-auth start-chat start-gateway start-game docker-up docker-down docker-logs docker-reset docker-fix-iptables world-grpc-list world-grpc-ping
 ifeq ($(OS),Windows_NT)
 	BIN_EXT := .exe
 else
@@ -16,6 +16,18 @@ build-gateway:
 	go build -v -o $(BIN_DIR)/gateway$(BIN_EXT) ./gateway/cmd/gateway
 build-game:
 	go build -v -o $(BIN_DIR)/game-service$(BIN_EXT) ./game-service/cmd/game-service
+build-world:
+	go build -v -o $(BIN_DIR)/world-service$(BIN_EXT) ./world-service/cmd/world-service
+
+# Проверка world-service по gRPC без локального grpcurl (образ fullstorydev/grpcurl).
+# Нужен запущенный сервис на localhost:50054. На Linux используется --network host.
+WORLD_GRPCURL := $(DOCKER) run --rm --network host -v "$(CURDIR)/world-service/proto:/protos:ro" fullstorydev/grpcurl:latest -import-path /protos -proto world/v1/world.proto -plaintext
+
+world-grpc-list:
+	$(WORLD_GRPCURL) localhost:50054 list
+
+world-grpc-ping:
+	$(WORLD_GRPCURL) -d '{"limit":20,"offset":0}' localhost:50054 world.v1.WorldService/ListWorlds
 
 # Запуск сервисов.
 .PHONY: start
@@ -75,6 +87,11 @@ gen-chat:
 	  --go_out=chat-service --go_opt=paths=source_relative \
 	  --go-grpc_out=chat-service --go-grpc_opt=paths=source_relative \
 	  chat-service/proto/chat/v1/chat.proto
+gen-world:
+	protoc -I world-service \
+	  --go_out=world-service --go_opt=paths=source_relative \
+	  --go-grpc_out=world-service --go-grpc_opt=paths=source_relative \
+	  world-service/proto/world/v1/world.proto
 
 # go mod tidy по сервисам.
 .PHONY: tidy
@@ -86,6 +103,8 @@ tidy-gateway:
 	cd gateway && go mod tidy
 tidy-game:
 	cd game-service && go mod tidy
+tidy-world:
+	cd world-service && go mod tidy
 
 # Форматирование всего репозитория.
 .PHONY: gofmt

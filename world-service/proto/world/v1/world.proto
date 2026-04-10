@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package world.v1;
+
+option go_package = "world/proto/world/v1;worldv1";
+
+// WorldService хранит снапшоты игровых миров (внутренний сервис, не gateway).
+service WorldService {
+  rpc CreateWorld(CreateWorldRequest) returns (CreateWorldResponse);
+  rpc GetWorld(GetWorldRequest) returns (GetWorldResponse);
+  rpc ReplaceWorldSnapshot(ReplaceWorldSnapshotRequest) returns (ReplaceWorldSnapshotResponse);
+  rpc DeleteWorld(DeleteWorldRequest) returns (DeleteWorldResponse);
+  rpc ListWorlds(ListWorldsRequest) returns (ListWorldsResponse);
+}
+
+message World {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bytes snapshot = 4;
+  int32 schema_version = 5;
+  int64 version = 6;
+  // Unix seconds UTC
+  int64 created_at_unix = 7;
+  int64 updated_at_unix = 8;
+}
+
+message CreateWorldRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bytes snapshot = 4;
+  int32 schema_version = 5;
+}
+
+message CreateWorldResponse {
+  World world = 1;
+}
+
+message GetWorldRequest {
+  string id = 1;
+}
+
+message GetWorldResponse {
+  World world = 1;
+}
+
+message ReplaceWorldSnapshotRequest {
+  string id = 1;
+  bytes snapshot = 2;
+  int32 schema_version = 3;
+  // 0 — не проверять версию; иначе optimistic lock
+  int64 expected_version = 4;
+}
+
+message ReplaceWorldSnapshotResponse {
+  World world = 1;
+}
+
+message DeleteWorldRequest {
+  string id = 1;
+}
+
+message DeleteWorldResponse {}
+
+message ListWorldsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListWorldsResponse {
+  repeated World worlds = 1;
+}
