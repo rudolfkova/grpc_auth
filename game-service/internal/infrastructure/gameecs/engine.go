@@ -20,7 +20,7 @@ type Engine struct {
 
 	byUser map[int64]ecs.Entity
 
-	playerMapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
+	playerMapper *ecs.Map5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace]
 	systems      *SystemRegistry
 	moveIntents  MoveIntentStore
 
@@ -39,8 +39,8 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int) (*Engine, error) {
 		movementApplyEveryNTicks = 1
 	}
 	w := ecs.NewWorld()
-	playerMapper := ecs.NewMap4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](w)
-	playerFilter := ecs.NewFilter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](w)
+	playerMapper := ecs.NewMap5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace](w)
+	playerFilter := ecs.NewFilter5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace](w)
 	tileMapper := ecs.NewMap5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	tileFilter := ecs.NewFilter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter)
@@ -113,6 +113,7 @@ func (e *Engine) EnsurePlayerEntity(userID int64) ecs.Entity {
 		&gamekit.GridPos{X: 0, Y: 0},
 		&gamekit.Speed{MaxStep: 1},
 		&gamekit.Health{HP: gamekit.DefaultPlayerHP},
+		&gamekit.PlayerFace{DX: gamekit.DefaultPlayerFaceDX, DY: gamekit.DefaultPlayerFaceDY},
 	)
 	e.byUser[userID] = ent
 	return ent

@@ -10,12 +10,12 @@ import (
 
 // MoveIntentCaptureSystem обрабатывает type=move: только обновляет MoveIntentStore (без шага по клеткам).
 type MoveIntentCaptureSystem struct {
-	mapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
+	mapper *ecs.Map5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace]
 }
 
 // NewMoveIntentCaptureSystem ...
 func NewMoveIntentCaptureSystem(
-	mapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
+	mapper *ecs.Map5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace],
 ) *MoveIntentCaptureSystem {
 	return &MoveIntentCaptureSystem{mapper: mapper}
 }
@@ -38,7 +38,7 @@ func (s *MoveIntentCaptureSystem) Update(ctx *TickContext) {
 	if !s.mapper.HasAll(ent) {
 		return
 	}
-	_, _, speed, _ := s.mapper.Get(ent)
+	_, _, speed, _, _ := s.mapper.Get(ent)
 	step := speed.MaxStep
 	if step <= 0 {
 		ctx.Intents.Set(a.PlayerID, 0, 0)

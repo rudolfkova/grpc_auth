@@ -10,11 +10,11 @@ import (
 
 // DamageSystem обрабатывает действия type=hit.
 type DamageSystem struct {
-	mapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
+	mapper *ecs.Map5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace]
 }
 
 // NewDamageSystem создаёт систему урона с общим mapper мира.
-func NewDamageSystem(mapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]) *DamageSystem {
+func NewDamageSystem(mapper *ecs.Map5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace]) *DamageSystem {
 	return &DamageSystem{mapper: mapper}
 }
 
@@ -41,7 +41,7 @@ func (s *DamageSystem) applyDamage(targetEnt ecs.Entity, damage int) {
 	if damage <= 0 || !s.mapper.HasAll(targetEnt) {
 		return
 	}
-	_, _, _, hp := s.mapper.Get(targetEnt)
+	_, _, _, hp, _ := s.mapper.Get(targetEnt)
 	hp.HP -= damage
 	if hp.HP < 0 {
 		hp.HP = 0

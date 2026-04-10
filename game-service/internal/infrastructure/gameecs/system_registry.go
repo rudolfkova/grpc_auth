@@ -16,8 +16,8 @@ type SystemRegistry struct {
 // NewSystemRegistry собирает дефолтный набор систем для одного World.
 func NewSystemRegistry(
 	w *ecs.World,
-	playerMapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
-	playerFilter *ecs.Filter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
+	playerMapper *ecs.Map5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace],
+	playerFilter *ecs.Filter5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace],
 	tileMapper *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 ) *SystemRegistry {

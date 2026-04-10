@@ -136,7 +136,9 @@ WebSocket-сервис игрового мира: принимает дейст�
 - **Broadcast:** события без привязки к одному пользователю уходят всем подключённым клиентам.
 - **Точечно:** если у события задан получатель (по `user_id`), сообщение получают только соединения этого пользователя. Сейчас так уходит **`save_world_result`** (только инициатор сохранения).
 
-Типы событий задаёт движок. Событие **`state`** (broadcast каждый тик): `payload` содержит **`players`** (массив `{id,x,y,hp}`), **`tiles`** (массив `{x,y,layer,rotation,texture,blocks}`), **`tick_at`**. Если у любого тайла в клетке `blocks: true`, в клетку нельзя войти действием `move`.
+Типы событий задаёт движок. Событие **`state`** (broadcast каждый тик): `payload` содержит **`players`** (массив `{id,x,y,hp,face_dx,face_dy}` — направление для анимаций, см. `pkg/gamekit`), **`tiles`** (массив `{x,y,layer,rotation,texture,blocks}`), **`tick_at`**. Если у любого тайла в клетке `blocks: true`, в клетку нельзя войти действием `move`.
+
+**`face_dx` / `face_dy`:** целые в **{-1, 0, 1}**, совместимы с осями `move` и координатами клетки: **+X** — в сторону увеличения `x` (условно «вправо»), **+Y** — увеличения `y` (условно «вниз»). Обновляются при **успешном** шаге по сетке (в т.ч. полушаг лесенки при диагонали); при блоке стеной не меняются. При **первом спавне** игрока — **`(1, 0)`**. Ключи **всегда** присутствуют в JSON. Если в сохранённом мире в ECS было `(0, 0)`, в `state` отдаётся **`gamekit.DefaultPlayerFaceDX` / `DY`** (те же 1, 0).
 
 ### Отклонение запроса (`type: "reject"`)
 
@@ -192,6 +194,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 | Компонент | Назначение |
 |-----------|------------|
 | `PlayerRef` | `UserID` — связь с игроком по id из JWT |
+| `PlayerFace` | `DX`, `DY` в {-1,0,1} — взгляд / последний успешный шаг; в `state` как `face_dx`, `face_dy` |
 | `GridPos` | Целочисленные `X`, `Y` (игроки и тайлы на одной сетке) |
 | `TileLayer` | `Z` — индекс слоя в клетке; несколько сущностей с разными `Z` в одной `(x,y)` |
 | `TileFacing` | `RotationQuarter` — ориентация тайла, четверти по часовой стрелке `0..3` |
@@ -222,7 +225,7 @@ go build -o /tmp/game-service ./cmd/game-service
 
 **Лобби / мир:** поле `world_id` в TOML или переменная окружения **`WORLD_ID`**. Если в окружении процесса переменная **`WORLD_ID` задана** (в т.ч. пустая строка), она **перекрывает** значение из файла — так удобнее прокидывать id из Docker/Kubernetes на инстанс. В `docker-compose` для `game-service` объявлен проброс `WORLD_ID` с хоста (`environment: - WORLD_ID`). Пример: `WORLD_ID=my-lobby-world docker compose up -d game-service`.
 
-**Загрузка из world-service:** если **`world_id` непустой**, при старте выполняется gRPC **`GetWorld`** на **`world_service_addr`** (TOML или **`WORLD_SERVICE_ADDR`**). Опционально **`world_service_token`** / **`WORLD_SERVICE_TOKEN`** (`x-service-token`). Поле **`snapshot`** (bytes) должно быть **JSON от [ark-serde](https://github.com/mlange-42/ark-serde)** — тот же формат, что даёт `arkserde.Serialize(world)` для `*ecs.World` с зарегистрированными компонентами **`world.PlayerRef`**, **`world.GridPos`**, **`world.Speed`**, **`world.Health`**. Десериализация: `arkserde.Deserialize` в пустой мир, затем восстанавливается индекс `user_id → entity` (дубликаты `PlayerRef.UserID` или `UserID == 0` — ошибка старта). Пустой `snapshot` — пустой мир. Старый самодельный JSON вида `{"players":[...]}` **больше не поддерживается**. Если задан `world_id`, но пустой `world_service_addr`, процесс завершится с ошибкой.
+**Загрузка из world-service:** если **`world_id` непустой**, при старте выполняется gRPC **`GetWorld`** на **`world_service_addr`** (TOML или **`WORLD_SERVICE_ADDR`**). Опционально **`world_service_token`** / **`WORLD_SERVICE_TOKEN`** (`x-service-token`). Поле **`snapshot`** (bytes) должно быть **JSON от [ark-serde](https://github.com/mlange-42/ark-serde)** — тот же формат, что даёт `arkserde.Serialize(world)` для `*ecs.World` с зарегистрированными компонентами игрока **`PlayerRef`**, **`GridPos`**, **`Speed`**, **`Health`**, **`PlayerFace`** (все из `gamekit`). Десериализация: `arkserde.Deserialize` в пустой мир, затем восстанавливается индекс `user_id → entity` (дубликаты `PlayerRef.UserID` или `UserID == 0` — ошибка старта). Пустой `snapshot` — пустой мир. Старые снимки **без** `PlayerFace` могут не загрузиться или дать `(0,0)` в ECS — в **`state`** тогда подставляется **`DefaultPlayerFaceDX`/`DY`** (1, 0). Старый самодельный JSON вида `{"players":[...]}` **больше не поддерживается**. Если задан `world_id`, но пустой `world_service_addr`, процесс завершится с ошибкой.
 
 **Сохранение из игры** (редактор): см. входящее событие **`save_world`** выше; для записи в world-service адрес gRPC должен быть задан независимо от того, задан ли **`world_id`** при старте (пустой `world_id` = пустой мир в памяти, сохранить его под именем всё равно можно).
 

@@ -10,7 +10,7 @@ import (
 )
 
 // applyArkWorldSnapshot десериализует снимок через ark-serde в уже подготовленный пустой World
-// (компоненты зарегистрированы через NewMap4). После загрузки восстанавливается индекс byUser.
+// (компоненты зарегистрированы через NewMap5 для игроков). После загрузки восстанавливается индекс byUser.
 func (e *Engine) applyArkWorldSnapshot(snapshot []byte) error {
 	if len(snapshot) == 0 {
 		return nil
@@ -28,12 +28,12 @@ func (e *Engine) applyArkWorldSnapshot(snapshot []byte) error {
 func (e *Engine) rebuildPlayerIndexLocked() error {
 	clear(e.byUser)
 
-	filt := ecs.NewFilter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](e.world)
+	filt := ecs.NewFilter5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace](e.world)
 	q := filt.Query()
 	defer q.Close()
 
 	for q.Next() {
-		ref, _, _, _ := q.Get()
+		ref, _, _, _, _ := q.Get()
 		if ref.UserID == 0 {
 			return fmt.Errorf("world snapshot: entity with PlayerRef.UserID == 0")
 		}

@@ -8,15 +8,15 @@ import (
 
 // MovementApplySystem один раз за тик сдвигает каждого игрока по текущему интенту из MoveIntentStore.
 type MovementApplySystem struct {
-	mapper       *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
-	playerFilter *ecs.Filter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
+	mapper       *ecs.Map5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace]
+	playerFilter *ecs.Filter5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace]
 	tileFilter   *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
 }
 
 // NewMovementApplySystem ...
 func NewMovementApplySystem(
-	mapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
-	playerFilter *ecs.Filter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
+	mapper *ecs.Map5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace],
+	playerFilter *ecs.Filter5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace],
 	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 ) *MovementApplySystem {
 	return &MovementApplySystem{mapper: mapper, playerFilter: playerFilter, tileFilter: tileFilter}
@@ -29,7 +29,7 @@ func (s *MovementApplySystem) Update(ctx *TickContext) {
 	q := s.playerFilter.Query()
 	defer q.Close()
 	for q.Next() {
-		ref, _, _, _ := q.Get()
+		ref, _, _, _, _ := q.Get()
 		dx, dy := ctx.Intents.Get(ref.UserID)
 		if dx == 0 && dy == 0 {
 			continue
@@ -49,7 +49,7 @@ func (s *MovementApplySystem) applyStep(ent ecs.Entity, dx, dy int) bool {
 	if !s.mapper.HasAll(ent) {
 		return false
 	}
-	_, pos, speed, _ := s.mapper.Get(ent)
+	_, pos, speed, _, face := s.mapper.Get(ent)
 	step := speed.MaxStep
 	if step <= 0 {
 		return false
@@ -63,6 +63,9 @@ func (s *MovementApplySystem) applyStep(ent ecs.Entity, dx, dy int) bool {
 	}
 	pos.X = tx
 	pos.Y = ty
+	if dx != 0 || dy != 0 {
+		face.DX, face.DY = signInt(dx), signInt(dy)
+	}
 	return true
 }
 

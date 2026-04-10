@@ -24,6 +24,19 @@ type Health struct {
 // DefaultPlayerHP — стартовое здоровье при спавне игрока на сервере.
 const DefaultPlayerHP = 10
 
+// DefaultPlayerFaceDX, DefaultPlayerFaceDY — взгляд при спавне и в state, если в ECS ещё (0,0).
+const (
+	DefaultPlayerFaceDX = 1
+	DefaultPlayerFaceDY = 0
+)
+
+// PlayerFace — направление «взгляда» / последнего успешного шага для анимаций (state.face_dx, face_dy).
+// Значения в {-1, 0, 1} по осям; при спавне по умолчанию (1, 0) — на восток по экрану.
+type PlayerFace struct {
+	DX int `json:"face_dx"`
+	DY int `json:"face_dy"`
+}
+
 // TileTexture — имя текстуры на клиенте (ассет).
 type TileTexture struct {
 	Name string `json:"name"`

@@ -81,10 +81,12 @@ type SaveWorldResultPayload struct {
 
 // Player — элемент массива players в payload события TypeState.
 type Player struct {
-	ID int64 `json:"id"`
-	X  int   `json:"x"`
-	Y  int   `json:"y"`
-	HP int   `json:"hp"`
+	ID     int64 `json:"id"`
+	X      int   `json:"x"`
+	Y      int   `json:"y"`
+	HP     int   `json:"hp"`
+	FaceDX int   `json:"face_dx"`
+	FaceDY int   `json:"face_dy"`
 }
 
 // Tile — элемент массива tiles в payload события TypeState.
