@@ -1,7 +1,6 @@
-package game
+package world
 
-// ECS component types for github.com/mlange-42/ark.
-// Один архетип игрока: PlayerRef + GridPos + Speed + Health.
+// Компоненты игрока для ECS-слоя (поля — чистая модель, без зависимости от Ark).
 
 // PlayerRef связывает сущность с user_id из JWT / транспорта.
 type PlayerRef struct {
@@ -14,7 +13,6 @@ type GridPos struct {
 }
 
 // Speed ограничивает величину шага по каждой оси за одно действие move (-MaxStep..MaxStep).
-// По умолчанию 1 (как раньше dx,dy ∈ {-1,0,1}).
 type Speed struct {
 	MaxStep int
 }
@@ -23,3 +21,6 @@ type Speed struct {
 type Health struct {
 	HP int
 }
+
+// DefaultPlayerHP — стартовое здоровье при спавне игрока.
+const DefaultPlayerHP = 10

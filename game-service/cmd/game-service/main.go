@@ -11,7 +11,7 @@ import (
 
 	gameapp "game/internal/app/game"
 	"game/internal/config"
-	domain "game/internal/domain/game"
+	"game/internal/infrastructure/gameecs"
 	gamews "game/internal/ports/ws/game"
 
 	"github.com/BurntSushi/toml"
@@ -32,7 +32,7 @@ func main() {
 	}
 
 	logger := config.NewLogger(cfg)
-	engine := domain.NewEngine()
+	engine := gameecs.NewEngine()
 	app := gameapp.NewService(engine, cfg.TickRate, cfg.QueueSize)
 	wsHandler := gamews.NewHandler(logger, cfg.JWTSecret, app)
 

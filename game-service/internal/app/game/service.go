@@ -6,22 +6,18 @@ import (
 	"time"
 
 	"game/internal/domain/models"
+	"game/internal/domain/ports"
 )
-
-// Engine is the domain boundary used by app layer.
-type Engine interface {
-	ProcessTick(actions []models.Action) []models.Event
-}
 
 // Service orchestrates tick loop and batching.
 type Service struct {
-	engine   Engine
+	engine   ports.GameEngine
 	tickRate time.Duration
 	ingress  chan models.Action
 	events   chan models.Outbound
 }
 
-func NewService(engine Engine, tickRate time.Duration, queueSize int) *Service {
+func NewService(engine ports.GameEngine, tickRate time.Duration, queueSize int) *Service {
 	if tickRate <= 0 {
 		tickRate = 50 * time.Millisecond
 	}
