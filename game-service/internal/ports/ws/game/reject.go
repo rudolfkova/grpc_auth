@@ -3,7 +3,7 @@ package gamews
 import (
 	"encoding/json"
 
-	"game/internal/domain/models"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 )
 
 // RejectReason — машинно читаемая причина отказа (для клиентского логирования).
@@ -21,7 +21,7 @@ type rejectPayload struct {
 	RequestService  string `json:"request_service,omitempty"`
 }
 
-func buildRejectEnvelope(reason, message, reqType, reqService string) (models.Envelope, error) {
+func buildRejectEnvelope(reason, message, reqType, reqService string) (gamekit.Envelope, error) {
 	body, err := json.Marshal(rejectPayload{
 		Reason:         reason,
 		Message:        message,
@@ -29,11 +29,11 @@ func buildRejectEnvelope(reason, message, reqType, reqService string) (models.En
 		RequestService: reqService,
 	})
 	if err != nil {
-		return models.Envelope{}, err
+		return gamekit.Envelope{}, err
 	}
-	return models.Envelope{
-		Service: "game",
-		Type:    "reject",
+	return gamekit.Envelope{
+		Service: gamekit.ServiceGame,
+		Type:    gamekit.TypeReject,
 		Payload: body,
 	}, nil
 }

@@ -3,7 +3,7 @@ package gameecs
 import (
 	"fmt"
 
-	"game/internal/domain/world"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	arkserde "github.com/mlange-42/ark-serde"
 	"github.com/mlange-42/ark/ecs"
@@ -28,7 +28,7 @@ func (e *Engine) applyArkWorldSnapshot(snapshot []byte) error {
 func (e *Engine) rebuildPlayerIndexLocked() error {
 	clear(e.byUser)
 
-	filt := ecs.NewFilter4[world.PlayerRef, world.GridPos, world.Speed, world.Health](e.world)
+	filt := ecs.NewFilter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](e.world)
 	q := filt.Query()
 	defer q.Close()
 

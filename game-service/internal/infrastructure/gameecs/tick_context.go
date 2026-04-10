@@ -2,6 +2,7 @@ package gameecs
 
 import (
 	"game/internal/domain/models"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	"github.com/mlange-42/ark/ecs"
 )
@@ -15,5 +16,6 @@ type PlayerEntitySink interface {
 type TickContext struct {
 	Sink          PlayerEntitySink
 	CurrentAction models.Action
-	Players       []models.Player
+	Players       []gamekit.Player
+	Tiles         []gamekit.Tile
 }

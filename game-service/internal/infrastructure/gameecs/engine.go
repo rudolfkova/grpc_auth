@@ -7,7 +7,7 @@ import (
 	"game/internal/domain/gameplay"
 	"game/internal/domain/models"
 	"game/internal/domain/ports"
-	"game/internal/domain/world"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	"github.com/mlange-42/ark/ecs"
 )
@@ -19,7 +19,7 @@ type Engine struct {
 
 	byUser map[int64]ecs.Entity
 
-	playerMapper *ecs.Map4[world.PlayerRef, world.GridPos, world.Speed, world.Health]
+	playerMapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
 	systems      *SystemRegistry
 }
 
@@ -29,13 +29,15 @@ var _ ports.GameEngine = (*Engine)(nil)
 // snapshot — JSON от ark-serde (github.com/mlange-42/ark-serde, Serialize); пустой слайс = пустой мир.
 func NewEngine(snapshot []byte) (*Engine, error) {
 	w := ecs.NewWorld()
-	mapper := ecs.NewMap4[world.PlayerRef, world.GridPos, world.Speed, world.Health](w)
-	filter := ecs.NewFilter4[world.PlayerRef, world.GridPos, world.Speed, world.Health](w)
-	reg := NewSystemRegistry(mapper, filter)
+	playerMapper := ecs.NewMap4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](w)
+	playerFilter := ecs.NewFilter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](w)
+	tileMapper := ecs.NewMap3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid](w)
+	tileFilter := ecs.NewFilter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid](w)
+	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter)
 	e := &Engine{
 		world:        w,
 		byUser:       make(map[int64]ecs.Entity),
-		playerMapper: mapper,
+		playerMapper: playerMapper,
 		systems:      reg,
 	}
 	if err := e.applyArkWorldSnapshot(snapshot); err != nil {
@@ -51,14 +53,16 @@ func (e *Engine) ProcessTick(actions []models.Action) []models.Event {
 
 	emit := gameplay.NewEmitter(16)
 
-	players := e.systems.Update(e, actions)
+	players, tiles := e.systems.Update(e, actions)
 
 	type statePayload struct {
-		Players []models.Player `json:"players"`
+		Players []gamekit.Player `json:"players"`
+		Tiles   []gamekit.Tile   `json:"tiles"`
 		TickAt  time.Time       `json:"tick_at"`
 	}
 	emit.Broadcast("state", statePayload{
 		Players: players,
+		Tiles:   tiles,
 		TickAt:  time.Now().UTC(),
 	})
 
@@ -75,10 +79,10 @@ func (e *Engine) EnsurePlayerEntity(userID int64) ecs.Entity {
 	}
 
 	ent := e.playerMapper.NewEntity(
-		&world.PlayerRef{UserID: userID},
-		&world.GridPos{X: 0, Y: 0},
-		&world.Speed{MaxStep: 1},
-		&world.Health{HP: world.DefaultPlayerHP},
+		&gamekit.PlayerRef{UserID: userID},
+		&gamekit.GridPos{X: 0, Y: 0},
+		&gamekit.Speed{MaxStep: 1},
+		&gamekit.Health{HP: gamekit.DefaultPlayerHP},
 	)
 	e.byUser[userID] = ent
 	return ent

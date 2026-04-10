@@ -25,7 +25,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 | Поле | Тип | Обязательно | Описание |
 |------|-----|-------------|----------|
 | `service` | string | да | Должно быть `"game"`. Иначе приходит `reject` с `reason: "wrong_service"`. |
-| `type` | string | да | Тип действия (движок не валидирует список на уровне порта; типичные: `move`, `hit`). Пустая строка → `reject` с `reason: "missing_type"`. |
+| `type` | string | да | Тип действия (движок не валидирует список на уровне порта; типичные: `move`, `hit`, `spawn_tile`). Пустая строка → `reject` с `reason: "missing_type"`. |
 | `payload` | JSON (raw) | нет | Произвольный JSON; интерпретация — в доменном слое. |
 
 Примеры:
@@ -50,7 +50,17 @@ WebSocket-сервис игрового мира: принимает дейст�
 }
 ```
 
-Невалидный `payload` для `move`/`hit` движок молча игнорирует (без `reject`); отклонения по протоколу — только перечисленные `reason` выше.
+**Тайл (редактор)** — `type: "spawn_tile"`. В клетке `(x,y)` удаляется предыдущий тайл (если был) и создаётся новый сущностью ECS: позиция, имя текстуры, флаг коллизии. Проверок прав пока нет.
+
+```json
+{
+  "service": "game",
+  "type": "spawn_tile",
+  "payload": { "x": 2, "y": 3, "texture": "wall", "blocks": true }
+}
+```
+
+Невалидный `payload` для `move`/`hit`/`spawn_tile` движок молча игнорирует (без `reject`); отклонения по протоколу — только перечисленные `reason` выше.
 
 Если внутренняя очередь действий переполнена, действие **не принимается**; клиент получает отдельное сообщение `reject` (см. ниже).
 
@@ -61,7 +71,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 - **Broadcast:** события без привязки к одному пользователю уходят всем подключённым клиентам.
 - **Точечно:** если у события задан получатель (по `user_id`), сообщение получают только соединения этого пользователя.
 
-Типы событий задаёт движок (например, `state` со снимком мира). Конкретные поля `payload` смотрите в `internal/infrastructure/gameecs`, `internal/domain/models` и слоях ниже.
+Типы событий задаёт движок. Событие **`state`** (broadcast каждый тик): `payload` содержит **`players`** (массив `{id,x,y,hp}`), **`tiles`** (массив `{x,y,texture,blocks}`), **`tick_at`**. Если `blocks: true`, в клетку нельзя войти действием `move`.
 
 ### Отклонение запроса (`type: "reject"`)
 
@@ -99,8 +109,8 @@ WebSocket-сервис игрового мира: принимает дейст�
 
 | Слой | Пакет | Роль |
 |------|--------|------|
-| Модели / DTO | `internal/domain/models` | `Action`, `Event`, `Player`, интенты WS |
-| Модель мира (без Ark) | `internal/domain/world` | Компоненты игрока: `PlayerRef`, `GridPos`, `Speed`, `Health`, константа `DefaultPlayerHP` |
+| Модели / DTO | `internal/domain/models` | `Action`, `Event`, `Outbound` (внутри — `gamekit.Envelope`) |
+| Общий контракт с клиентом | `github.com/rudolfkova/grpc_auth/pkg/gamekit` (`pkg/gamekit`) | ECS-компоненты + JSON WS: `Envelope`, интенты, `Player`/`Tile` в `state` |
 | Сбор событий тика | `internal/domain/gameplay` | `Emitter` |
 | Порты | `internal/domain/ports` | `GameEngine` — `ProcessTick` (зависимость приложения от абстракции) |
 | Прикладной сервис | `internal/app/game` | Тикер, очередь действий, маршаллинг в `Envelope` |
@@ -112,20 +122,22 @@ WebSocket-сервис игрового мира: принимает дейст�
 
 Состояние мира — **[Ark ECS](https://github.com/mlange-42/ark)** в `internal/infrastructure/gameecs`. У игрока одна сущность на `user_id`.
 
-**Компоненты** (доменные типы в `internal/domain/world/components.go`):
+**Компоненты** — пакет **`github.com/rudolfkova/grpc_auth/pkg/gamekit`** (`pkg/gamekit`, см. `pkg/gamekit/README.md`):
 
 | Компонент | Назначение |
 |-----------|------------|
 | `PlayerRef` | `UserID` — связь с игроком по id из JWT |
-| `GridPos` | Целочисленные `X`, `Y` |
+| `GridPos` | Целочисленные `X`, `Y` (игроки и тайлы на одной сетке) |
+| `TileTexture` | `Name` — строка-идентификатор текстуры для клиента |
+| `TileSolid` | `Blocks` — запрет входа в клетку при `move` |
 | `Speed` | `MaxStep` — допустимый диапазон `dx`/`dy` за один `move` по каждой оси: **[-MaxStep, MaxStep]**; при спавне **1**. При `MaxStep <= 0` движение не применяется. |
-| `Health` | `HP`; старт **`world.DefaultPlayerHP`** (10) |
+| `Health` | `HP`; старт **`gamekit.DefaultPlayerHP`** (10) |
 
 **Системы** (`internal/infrastructure/gameecs`, интерфейс `System` — `Update(*TickContext)`):
 
 - **`SystemRegistry`** — per-action системы на каждое действие, затем post-tick.
-- **`MovementSystem`**, **`DamageSystem`** — общий `Map4` на мир.
-- **`SnapshotSystem`** — `Filter4`, заполняет `TickContext.Players` для `state`.
+- **`MovementSystem`**, **`DamageSystem`**, **`TileSpawnSystem`** — игроки и тайлы.
+- **`SnapshotSystem`** — заполняет `TickContext.Players` и `TickContext.Tiles` для `state`.
 
 **`TickContext`** и **`PlayerEntitySink`** — внутри `gameecs`; `*gameecs.Engine` реализует `ports.GameEngine` и `PlayerEntitySink`.
 

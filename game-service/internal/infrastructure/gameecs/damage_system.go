@@ -3,19 +3,18 @@ package gameecs
 import (
 	"encoding/json"
 
-	"game/internal/domain/models"
-	"game/internal/domain/world"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	"github.com/mlange-42/ark/ecs"
 )
 
 // DamageSystem обрабатывает действия type=hit.
 type DamageSystem struct {
-	mapper *ecs.Map4[world.PlayerRef, world.GridPos, world.Speed, world.Health]
+	mapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
 }
 
 // NewDamageSystem создаёт систему урона с общим mapper мира.
-func NewDamageSystem(mapper *ecs.Map4[world.PlayerRef, world.GridPos, world.Speed, world.Health]) *DamageSystem {
+func NewDamageSystem(mapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]) *DamageSystem {
 	return &DamageSystem{mapper: mapper}
 }
 
@@ -25,7 +24,7 @@ func (s *DamageSystem) Update(ctx *TickContext) {
 		return
 	}
 
-	var hit models.HitIntent
+	var hit gamekit.HitIntent
 	if err := json.Unmarshal(a.Payload, &hit); err != nil {
 		return
 	}

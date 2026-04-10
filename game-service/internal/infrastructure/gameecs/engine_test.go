@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"game/internal/domain/models"
-	"game/internal/domain/world"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	arkserde "github.com/mlange-42/ark-serde"
 )
@@ -16,8 +16,8 @@ func TestEngine_MoveAndHit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	movePayload, _ := json.Marshal(models.MoveIntent{DX: 1, DY: 0})
-	hitPayload, _ := json.Marshal(models.HitIntent{TargetID: 2, Damage: 3})
+	movePayload, _ := json.Marshal(gamekit.MoveIntent{DX: 1, DY: 0})
+	hitPayload, _ := json.Marshal(gamekit.HitIntent{TargetID: 2, Damage: 3})
 
 	e.ProcessTick([]models.Action{
 		{PlayerID: 1, Type: "move", Payload: movePayload},
@@ -29,13 +29,64 @@ func TestEngine_MoveAndHit(t *testing.T) {
 
 	ent2 := e.EnsurePlayerEntity(2)
 	_, _, _, hp := e.playerMapper.Get(ent2)
-	if hp.HP != world.DefaultPlayerHP-3 {
-		t.Fatalf("target HP: want %d, got %d", world.DefaultPlayerHP-3, hp.HP)
+	if hp.HP != gamekit.DefaultPlayerHP-3 {
+		t.Fatalf("target HP: want %d, got %d", gamekit.DefaultPlayerHP-3, hp.HP)
 	}
 	ent1 := e.EnsurePlayerEntity(1)
 	_, pos, _, _ := e.playerMapper.Get(ent1)
 	if pos.X != 1 || pos.Y != 0 {
 		t.Fatalf("mover position: want (1,0), got (%d,%d)", pos.X, pos.Y)
+	}
+}
+
+func TestEngine_spawnTileAppearsInState(t *testing.T) {
+	e, err := NewEngine(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 3, Y: 4, Texture: "wall", Blocks: true})
+	evs := e.ProcessTick([]models.Action{
+		{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload},
+	})
+	if len(evs) != 1 || evs[0].Type != "state" {
+		t.Fatalf("events: %+v", evs)
+	}
+	body, err := json.Marshal(evs[0].Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st struct {
+		Tiles []gamekit.Tile `json:"tiles"`
+	}
+	if err := json.Unmarshal(body, &st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Tiles) != 1 || st.Tiles[0].X != 3 || st.Tiles[0].Y != 4 || st.Tiles[0].Texture != "wall" || !st.Tiles[0].Blocks {
+		t.Fatalf("tiles: %+v", st.Tiles)
+	}
+}
+
+func TestEngine_moveBlockedBySolidTile(t *testing.T) {
+	e, err := NewEngine(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 1, Y: 0, Texture: "wall", Blocks: true})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+
+	movePayload, _ := json.Marshal(gamekit.MoveIntent{DX: 1, DY: 0})
+	hitPayload, _ := json.Marshal(gamekit.HitIntent{TargetID: 2, Damage: 3})
+	e.ProcessTick([]models.Action{
+		{PlayerID: 1, Type: "move", Payload: movePayload},
+		{PlayerID: 1, Type: "hit", Payload: hitPayload},
+	})
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	ent1 := e.EnsurePlayerEntity(1)
+	_, pos, _, _ := e.playerMapper.Get(ent1)
+	if pos.X != 0 || pos.Y != 0 {
+		t.Fatalf("player 1 blocked at wall: want (0,0), got (%d,%d)", pos.X, pos.Y)
 	}
 }
 

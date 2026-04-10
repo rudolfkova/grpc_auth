@@ -2,7 +2,7 @@ package gameecs
 
 import (
 	"game/internal/domain/models"
-	"game/internal/domain/world"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	"github.com/mlange-42/ark/ecs"
 )
@@ -15,22 +15,26 @@ type SystemRegistry struct {
 
 // NewSystemRegistry собирает дефолтный набор систем для одного World.
 func NewSystemRegistry(
-	mapper *ecs.Map4[world.PlayerRef, world.GridPos, world.Speed, world.Health],
-	filter *ecs.Filter4[world.PlayerRef, world.GridPos, world.Speed, world.Health],
+	w *ecs.World,
+	playerMapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
+	playerFilter *ecs.Filter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health],
+	tileMapper *ecs.Map3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid],
+	tileFilter *ecs.Filter3[gamekit.GridPos, gamekit.TileTexture, gamekit.TileSolid],
 ) *SystemRegistry {
 	return &SystemRegistry{
 		perAction: []System{
-			NewMovementSystem(mapper),
-			NewDamageSystem(mapper),
+			NewMovementSystem(playerMapper, tileFilter),
+			NewDamageSystem(playerMapper),
+			NewTileSpawnSystem(w, tileMapper, tileFilter),
 		},
 		postTick: []System{
-			NewSnapshotSystem(filter),
+			NewSnapshotSystem(playerFilter, tileFilter),
 		},
 	}
 }
 
 // Update выполняет per-action системы для каждого действия, затем post-tick.
-func (r *SystemRegistry) Update(sink PlayerEntitySink, actions []models.Action) []models.Player {
+func (r *SystemRegistry) Update(sink PlayerEntitySink, actions []models.Action) ([]gamekit.Player, []gamekit.Tile) {
 	ctx := &TickContext{Sink: sink}
 
 	for _, a := range actions {
@@ -48,5 +52,5 @@ func (r *SystemRegistry) Update(sink PlayerEntitySink, actions []models.Action) 
 		sys.Update(ctx)
 	}
 
-	return ctx.Players
+	return ctx.Players, ctx.Tiles
 }

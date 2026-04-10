@@ -9,3 +9,5 @@ use ./gateway
 use ./game-service
 
 use ./world-service
+
+use ./pkg/gamekit

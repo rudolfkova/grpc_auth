@@ -10,6 +10,7 @@ import (
 
 	gameapp "game/internal/app/game"
 	"game/internal/domain/models"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
@@ -32,12 +33,12 @@ type Handler struct {
 
 	mu      sync.RWMutex
 	clients map[*websocket.Conn]clientConn
-	byUser  map[int64]map[*websocket.Conn]chan models.Envelope
+	byUser  map[int64]map[*websocket.Conn]chan gamekit.Envelope
 }
 
 type clientConn struct {
 	userID int64
-	out    chan models.Envelope
+	out    chan gamekit.Envelope
 }
 
 func NewHandler(logger *slog.Logger, jwtSecret string, app *gameapp.Service) *Handler {
@@ -46,7 +47,7 @@ func NewHandler(logger *slog.Logger, jwtSecret string, app *gameapp.Service) *Ha
 		jwtSecret: jwtSecret,
 		app:       app,
 		clients:   make(map[*websocket.Conn]clientConn),
-		byUser:    make(map[int64]map[*websocket.Conn]chan models.Envelope),
+		byUser:    make(map[int64]map[*websocket.Conn]chan gamekit.Envelope),
 	}
 	go h.broadcastSnapshots()
 	return h
@@ -101,11 +102,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := make(chan models.Envelope, 64)
+	out := make(chan gamekit.Envelope, 64)
 	h.mu.Lock()
 	h.clients[conn] = clientConn{userID: userID, out: out}
 	if _, ok := h.byUser[userID]; !ok {
-		h.byUser[userID] = make(map[*websocket.Conn]chan models.Envelope)
+		h.byUser[userID] = make(map[*websocket.Conn]chan gamekit.Envelope)
 	}
 	h.byUser[userID][conn] = out
 	h.mu.Unlock()
@@ -160,13 +161,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		var env models.Envelope
+		var env gamekit.Envelope
 		if err := json.Unmarshal(data, &env); err != nil {
 			writeReject(RejectReasonInvalidJSON, "message is not valid JSON", "", "")
 			continue
 		}
 
-		if env.Service != "game" {
+		if env.Service != gamekit.ServiceGame {
 			writeReject(RejectReasonWrongService, "expected service \"game\"", env.Type, env.Service)
 			continue
 		}

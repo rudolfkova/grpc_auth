@@ -7,6 +7,7 @@ import (
 
 	"game/internal/domain/models"
 	"game/internal/domain/ports"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 )
 
 // Service orchestrates tick loop and batching.
@@ -63,8 +64,8 @@ func (s *Service) Run(ctx context.Context) {
 				}
 				out := models.Outbound{
 					RecipientUserID: ev.RecipientUserID,
-					Message: models.Envelope{
-						Service: "game",
+					Message: gamekit.Envelope{
+						Service: gamekit.ServiceGame,
 						Type:    ev.Type,
 						Payload: body,
 					},
