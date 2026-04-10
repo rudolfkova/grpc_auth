@@ -95,6 +95,27 @@ WebSocket-сервис игрового мира: принимает дейст�
 
 При успешном подключении и при закрытии соединения пишутся записи **`player connected`** / **`player disconnected`** с полями **`user_id`** и **`email`** (если email есть в JWT).
 
+## Движок: ECS (Ark)
+
+Внутреннее состояние мира хранится в **[Ark ECS](https://github.com/mlange-42/ark)** (`github.com/mlange-42/ark/ecs`). У игрока одна сущность на `user_id`.
+
+**Компоненты** (см. `internal/domain/game/ecs_components.go`):
+
+| Компонент | Назначение |
+|-----------|------------|
+| `PlayerRef` | `UserID` — связь с игроком по id из JWT |
+| `GridPos` | Целочисленные `X`, `Y` |
+| `Speed` | `MaxStep` — допустимый диапазон `dx`/`dy` за один `move` по каждой оси: **[-MaxStep, MaxStep]**; при спавне **1** (как раньше −1…1). При `MaxStep <= 0` движение не применяется. |
+| `Health` | `HP`; старт **10** |
+
+**«Системы»** (в коде — функции на мире, см. `systems.go`):
+
+- **`runMovementStep`** — применяет один шаг движения к сущности (читает/пишет `GridPos` и `Speed`). Вызывается из dispatch **в порядке поступления действий в тике**, чтобы сохранить чередование move/hit между игроками.
+- **`runDamageStep`** — вычитает урон из `Health` цели.
+- **`runStateSnapshotQuery`** — обход всех игроков через **`Filter4` + `Query`** Ark; результат идёт в событие `state`.
+
+Отдельного планировщика систем Ark нет (как в [документации Ark](https://mlange-42.github.io/ark/): «No systems. Just queries») — порядок логики задаётся явно в `ProcessTick` и dispatch.
+
 ## Разработка
 
 Сборка из корня модуля `game-service` (зависит от `go.work` в монорепо):

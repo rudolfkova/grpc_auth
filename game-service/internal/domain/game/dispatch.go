@@ -24,14 +24,9 @@ func (e *Engine) applyMove(a models.Action, _ *emitter) {
 	if err := json.Unmarshal(a.Payload, &mv); err != nil {
 		return
 	}
-	if mv.DX < -1 || mv.DX > 1 || mv.DY < -1 || mv.DY > 1 {
-		return
-	}
 
-	st := e.ensureActor(a.PlayerID)
-	st.Pos.X += mv.DX
-	st.Pos.Y += mv.DY
-	e.state[a.PlayerID] = st
+	ent := e.ensurePlayerEntity(a.PlayerID)
+	e.runMovementStep(ent, mv.DX, mv.DY)
 }
 
 func (e *Engine) applyHit(a models.Action, _ *emitter) {
@@ -43,13 +38,7 @@ func (e *Engine) applyHit(a models.Action, _ *emitter) {
 		return
 	}
 
-	// Ensure attacker and target exist in world state.
-	e.ensureActor(a.PlayerID)
-	target := e.ensureActor(hit.TargetID)
-
-	target.HP -= hit.Damage
-	if target.HP < 0 {
-		target.HP = 0
-	}
-	e.state[hit.TargetID] = target
+	e.ensurePlayerEntity(a.PlayerID)
+	targetEnt := e.ensurePlayerEntity(hit.TargetID)
+	e.runDamageStep(targetEnt, hit.Damage)
 }

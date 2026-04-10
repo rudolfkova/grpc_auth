@@ -5,25 +5,32 @@ import (
 	"time"
 
 	"game/internal/domain/models"
+
+	"github.com/mlange-42/ark/ecs"
 )
 
-// Engine contains only game domain state/logic.
-// It knows nothing about transport, auth, or timers.
+// Engine держит Ark World и маппинг user_id → Entity.
 type Engine struct {
 	mu    sync.Mutex
-	state map[int64]actorState
-}
+	world *ecs.World
 
-type actorState struct {
-	Pos models.Position
-	HP  int
+	byUser map[int64]ecs.Entity
+
+	playerMapper *ecs.Map4[PlayerRef, GridPos, Speed, Health]
+	playerFilter *ecs.Filter4[PlayerRef, GridPos, Speed, Health]
 }
 
 const defaultHP = 10
 
-// NewEngine creates in-memory game engine.
+// NewEngine создаёт игровой движок с пустым ECS-миром.
 func NewEngine() *Engine {
-	return &Engine{state: make(map[int64]actorState)}
+	w := ecs.NewWorld()
+	return &Engine{
+		world:        w,
+		byUser:       make(map[int64]ecs.Entity),
+		playerMapper: ecs.NewMap4[PlayerRef, GridPos, Speed, Health](w),
+		playerFilter: ecs.NewFilter4[PlayerRef, GridPos, Speed, Health](w),
+	}
 }
 
 // ProcessTick applies a batch of actions and returns a stream of domain events.
@@ -41,20 +48,12 @@ func (e *Engine) ProcessTick(actions []models.Action) []models.Event {
 		e.dispatchAction(a, emit)
 	}
 
-	// MVP: broadcast full state every tick.
+	// MVP: broadcast full state every tick (снимок через ECS query).
 	type statePayload struct {
 		Players []models.Player `json:"players"`
 		TickAt  time.Time       `json:"tick_at"`
 	}
-	players := make([]models.Player, 0, len(e.state))
-	for id, st := range e.state {
-		players = append(players, models.Player{
-			ID: id,
-			X:  st.Pos.X,
-			Y:  st.Pos.Y,
-			HP: st.HP,
-		})
-	}
+	players := e.runStateSnapshotQuery()
 
 	emit.Broadcast("state", statePayload{
 		Players: players,
@@ -64,11 +63,20 @@ func (e *Engine) ProcessTick(actions []models.Action) []models.Event {
 	return emit.Events()
 }
 
-func (e *Engine) ensureActor(id int64) actorState {
-	st, ok := e.state[id]
-	if !ok {
-		st = actorState{HP: defaultHP}
-		e.state[id] = st
+func (e *Engine) ensurePlayerEntity(userID int64) ecs.Entity {
+	if ent, ok := e.byUser[userID]; ok {
+		if e.playerMapper.HasAll(ent) {
+			return ent
+		}
+		delete(e.byUser, userID)
 	}
-	return st
+
+	ent := e.playerMapper.NewEntity(
+		&PlayerRef{UserID: userID},
+		&GridPos{X: 0, Y: 0},
+		&Speed{MaxStep: 1},
+		&Health{HP: defaultHP},
+	)
+	e.byUser[userID] = ent
+	return ent
 }
