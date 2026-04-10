@@ -24,7 +24,9 @@ type Config struct {
 	LogLevel  string        `toml:"log_level"`
 	TickRate  time.Duration `toml:"tick_rate"`
 	QueueSize int           `toml:"queue_size"`
-	JWTSecret string        `toml:"jwt_secret"`
+	// MovementApplyEveryNTicks — применять смещение по move-интенту не чаще чем раз в N тиков (1 = каждый тик). Не трогает частоту state/hit.
+	MovementApplyEveryNTicks int    `toml:"movement_apply_every_n_ticks"`
+	JWTSecret                  string `toml:"jwt_secret"`
 	// WorldID — id мира в world-service; из TOML или из EnvWorldID, если переменная задана.
 	WorldID string `toml:"world_id"`
 	// WorldServiceAddr — host:port gRPC world-service (нужен, если WorldID непустой).
@@ -37,12 +39,13 @@ type Config struct {
 // NewConfig returns defaults for local/dev.
 func NewConfig() *Config {
 	return &Config{
-		BindAddr:             ":50053",
-		LogLevel:             "info",
-		TickRate:             50 * time.Millisecond,
-		QueueSize:            1024,
-		JWTSecret:            "123",
-		SaveWorldAdminUserID: 1,
+		BindAddr:                 ":50053",
+		LogLevel:                 "info",
+		TickRate:                 50 * time.Millisecond,
+		QueueSize:                1024,
+		MovementApplyEveryNTicks: 1,
+		JWTSecret:                "123",
+		SaveWorldAdminUserID:     1,
 	}
 }
 

@@ -22,13 +22,22 @@ type Engine struct {
 
 	playerMapper *ecs.Map4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health]
 	systems      *SystemRegistry
+	moveIntents  MoveIntentStore
+
+	moveApplyEvery   int
+	moveApplyCounter int
+	diagStride       diagStrideState
 }
 
 var _ ports.GameEngine = (*Engine)(nil)
 
 // NewEngine создаёт движок с миром Ark и зарегистрированными системами.
 // snapshot — JSON от ark-serde (github.com/mlange-42/ark-serde, Serialize); пустой слайс = пустой мир.
-func NewEngine(snapshot []byte) (*Engine, error) {
+// movementApplyEveryNTicks — применять шаг движения не чаще чем раз в N тиков симуляции; <1 трактуется как 1.
+func NewEngine(snapshot []byte, movementApplyEveryNTicks int) (*Engine, error) {
+	if movementApplyEveryNTicks < 1 {
+		movementApplyEveryNTicks = 1
+	}
 	w := ecs.NewWorld()
 	playerMapper := ecs.NewMap4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](w)
 	playerFilter := ecs.NewFilter4[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health](w)
@@ -36,10 +45,11 @@ func NewEngine(snapshot []byte) (*Engine, error) {
 	tileFilter := ecs.NewFilter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter)
 	e := &Engine{
-		world:        w,
-		byUser:       make(map[int64]ecs.Entity),
-		playerMapper: playerMapper,
-		systems:      reg,
+		world:          w,
+		byUser:         make(map[int64]ecs.Entity),
+		playerMapper:   playerMapper,
+		systems:        reg,
+		moveApplyEvery: movementApplyEveryNTicks,
 	}
 	if err := e.applyArkWorldSnapshot(snapshot); err != nil {
 		return nil, err
@@ -54,7 +64,19 @@ func (e *Engine) ProcessTick(actions []models.Action) []models.Event {
 
 	emit := gameplay.NewEmitter(16)
 
-	players, tiles := e.systems.Update(e, actions)
+	applyMove := true
+	if e.moveApplyEvery > 1 {
+		applyMove = e.moveApplyCounter%e.moveApplyEvery == 0
+		e.moveApplyCounter++
+	}
+
+	tickCtx := &TickContext{
+		Sink:          e,
+		Intents:       &e.moveIntents,
+		ApplyMovement: applyMove,
+		Diag:          &e.diagStride,
+	}
+	players, tiles := e.systems.Update(tickCtx, actions)
 
 	type statePayload struct {
 		Players []gamekit.Player `json:"players"`

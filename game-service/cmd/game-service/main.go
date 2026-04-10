@@ -57,7 +57,11 @@ func main() {
 		snapshot = fetched.Snapshot
 	}
 
-	engine, err := gameecs.NewEngine(snapshot)
+	moveEvery := cfg.MovementApplyEveryNTicks
+	if moveEvery < 1 {
+		moveEvery = 1
+	}
+	engine, err := gameecs.NewEngine(snapshot, moveEvery)
 	if err != nil {
 		log.Fatalf("engine: %v", err)
 	}

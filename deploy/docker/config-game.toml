@@ -1,10 +1,12 @@
 bind_addr = ":50053"
 log_level = "DEBUG"
 tick_rate = "50ms"
+# Шаг по интенту move не чаще чем раз в N тиков симуляции (1 = каждый тик; 2 ≈ вдвое медленнее ходьба при том же TPS и частоте state).
+movement_apply_every_n_ticks = 2
 queue_size = 1024
 jwt_secret = "123"
-# id мира (лобби); в Docker чаще задают через env WORLD_ID с хоста / оркестратора.
-world_id = ""
+# id мира в world-service (лобби). Env WORLD_ID при наличии перекрывает это значение.
+world_id = "77bd07d2-ded4-4f30-ace7-3c0d6a650562"
 # gRPC world-service (имя сервиса в docker-compose). С хоста: localhost:50054.
 world_service_addr = "world-service:50054"
 # Если в world-service задан service_token; можно задать через WORLD_SERVICE_TOKEN.

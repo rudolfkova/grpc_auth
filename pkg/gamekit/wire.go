@@ -31,7 +31,9 @@ type Envelope struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-// MoveIntent — payload для TypeMove.
+// MoveIntent — payload для TypeMove: обновляет «удерживаемое» направление (после clamp к Speed.MaxStep).
+// Физический шаг по сетке выполняется не чаще одного раза за игровой тик на сервере; частые сообщения только обновляют интент.
+// Отправьте dx=0, dy=0, чтобы сбросить движение.
 type MoveIntent struct {
 	DX int `json:"dx"`
 	DY int `json:"dy"`

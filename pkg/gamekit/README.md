@@ -77,7 +77,7 @@ import "github.com/rudolfkova/grpc_auth/pkg/gamekit"
 |-----|------------|
 | `gamekit.PlayerRef` | `UserID int64` — связь с JWT |
 | `gamekit.GridPos` | Целочисленная клетка `X`, `Y` (игроки и тайлы на одной сетке) |
-| `gamekit.Speed` | `MaxStep` — лимит шага за один `move` |
+| `gamekit.Speed` | `MaxStep` — clamp дельты при записи интента `move`; один шаг по сетке за тик на сервере |
 | `gamekit.Health` | `HP` |
 | `gamekit.DefaultPlayerHP` | Константа стартового HP на сервере |
 | `gamekit.TileTexture` | `Name` — строка-идентификатор текстуры у клиента |
@@ -125,7 +125,7 @@ type Envelope struct {
 
 ## Исходящие интенты (кладутся в `Envelope.Payload` как JSON)
 
-**Движение**
+**Движение** — интент направления; сервер применяет **один** шаг за игровой тик. `dx:0, dy:0` — сброс.
 
 ```json
 { "dx": 1, "dy": 0 }

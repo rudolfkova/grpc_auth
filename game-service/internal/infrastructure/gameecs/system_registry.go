@@ -23,20 +23,22 @@ func NewSystemRegistry(
 ) *SystemRegistry {
 	return &SystemRegistry{
 		perAction: []System{
-			NewMovementSystem(playerMapper, tileFilter),
+			NewMoveIntentCaptureSystem(playerMapper),
 			NewDamageSystem(playerMapper),
 			NewTileSpawnSystem(w, tileMapper, tileFilter),
 			NewTileClearSystem(w, tileFilter),
 		},
 		postTick: []System{
+			NewMovementApplySystem(playerMapper, playerFilter, tileFilter),
 			NewSnapshotSystem(playerFilter, tileFilter),
 		},
 	}
 }
 
-// Update выполняет per-action системы для каждого действия, затем post-tick.
-func (r *SystemRegistry) Update(sink PlayerEntitySink, actions []models.Action) ([]gamekit.Player, []gamekit.Tile) {
-	ctx := &TickContext{Sink: sink}
+// Update выполняет per-action системы для каждого действия, затем post-tick (в т.ч. один шаг движения за тик).
+func (r *SystemRegistry) Update(ctx *TickContext, actions []models.Action) ([]gamekit.Player, []gamekit.Tile) {
+	ctx.Players = nil
+	ctx.Tiles = nil
 
 	for _, a := range actions {
 		if a.PlayerID == 0 {

@@ -30,7 +30,12 @@ WebSocket-сервис игрового мира: принимает дейст�
 
 Примеры:
 
-**Движение** (`payload` — координаты или дельта, в зависимости от реализации движка):
+**Движение** — `type: "move"`, `payload`: `{ "dx", "dy" }` (целые, по смыслу направление / желаемая дельта).
+
+- Сервер хранит **последний интент** на игрока (между тиками не сбрасывается). Каждое сообщение `move` **только обновляет** этот интент (значения ограничиваются **`Speed.MaxStep`** по каждой оси, как раньше).
+- **Один шаг по клеткам** выполняется **не чаще одного раза за тик симуляции** (см. `movement_apply_every_n_ticks` в конфиге; при `1` — каждый тик, при `2` — через тик и т.д.). Частота broadcast **`state`** по-прежнему задаётся **`tick_rate`**. Много одинаковых `move` в одном тике **не умножают** шаг — удобно слать «всё ещё жму вправо» каждый кадр клиента.
+- Чтобы **остановиться**, отправьте `dx: 0, dy: 0` (сброс интента).
+- **Диагональ** (`dx` и `dy` оба ненулевые): сервер не делает один скачок по диагонали за шаг — движение идёт **лесенкой** (по очереди по X и по Y), скорость по «диагонали визуально» ближе к ортогонали; при упоре в стену по текущей оси фаза не ломается, шаг повторится на следующем применении движения.
 
 ```json
 {
@@ -176,7 +181,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 | Прикладной сервис | `internal/app/game` | Тикер, очередь действий, маршаллинг в `Envelope` |
 | Адаптер WS | `internal/ports/ws/game` | HTTP/WebSocket |
 | Инфраструктура ECS | `internal/infrastructure/gameecs` | Ark `World`, `Engine`, системы, `SystemRegistry` |
-| Сборка | `cmd/game-service` | `worldclient.GetWorld` (если задан `world_id`) → `gameecs.NewEngine(snapshot)` → `app.NewService(engine, ...)` |
+| Сборка | `cmd/game-service` | `worldclient.GetWorld` (если задан `world_id`) → `gameecs.NewEngine(snapshot, movement_apply_every_n_ticks)` → `app.NewService(engine, ...)` |
 
 ## Движок: ECS (Ark)
 
@@ -192,13 +197,13 @@ WebSocket-сервис игрового мира: принимает дейст�
 | `TileFacing` | `RotationQuarter` — ориентация тайла, четверти по часовой стрелке `0..3` |
 | `TileTexture` | `Name` — строка-идентификатор текстуры для клиента |
 | `TileSolid` | `Blocks` — запрет входа в клетку при `move` (если хотя бы один тайл в клетке блокирует) |
-| `Speed` | `MaxStep` — допустимый диапазон `dx`/`dy` за один `move` по каждой оси: **[-MaxStep, MaxStep]**; при спавне **1**. При `MaxStep <= 0` движение не применяется. |
+| `Speed` | `MaxStep` — при записи интента из `move` дельта по каждой оси режется в **[-MaxStep, MaxStep]**; за один **тик** выполняется не больше одного шага с этой дельтой. При спавне **1**. При `MaxStep <= 0` движение отключено. |
 | `Health` | `HP`; старт **`gamekit.DefaultPlayerHP`** (10) |
 
 **Системы** (`internal/infrastructure/gameecs`, интерфейс `System` — `Update(*TickContext)`):
 
 - **`SystemRegistry`** — per-action системы на каждое действие, затем post-tick.
-- **`MovementSystem`**, **`DamageSystem`**, **`TileSpawnSystem`**, **`TileClearSystem`** — игроки и тайлы.
+- **`MoveIntentCaptureSystem`**, **`DamageSystem`**, **`TileSpawnSystem`**, **`TileClearSystem`** — per-action; **`MovementApplySystem`** — один шаг движения за тик по сохранённому интенту.
 - **`SnapshotSystem`** — заполняет `TickContext.Players` и `TickContext.Tiles` для `state`.
 
 **`TickContext`** и **`PlayerEntitySink`** — внутри `gameecs`; `*gameecs.Engine` реализует `ports.GameEngine` и `PlayerEntitySink`.
@@ -213,7 +218,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 go build -o /tmp/game-service ./cmd/game-service
 ```
 
-Конфиг и порт — `cmd/game-service`, `internal/config`, `deploy/docker/config-game.toml`.
+Конфиг и порт — `cmd/game-service`, `internal/config`, `deploy/docker/config-game.toml`. **`tick_rate`** — интервал тика симуляции и частота `state`. **`movement_apply_every_n_ticks`** — как часто именно **движение по интенту** совершает шаг (меньше нагрузка на «скорость бега» без замедления остального тика).
 
 **Лобби / мир:** поле `world_id` в TOML или переменная окружения **`WORLD_ID`**. Если в окружении процесса переменная **`WORLD_ID` задана** (в т.ч. пустая строка), она **перекрывает** значение из файла — так удобнее прокидывать id из Docker/Kubernetes на инстанс. В `docker-compose` для `game-service` объявлен проброс `WORLD_ID` с хоста (`environment: - WORLD_ID`). Пример: `WORLD_ID=my-lobby-world docker compose up -d game-service`.
 
