@@ -26,17 +26,22 @@ type Engine struct {
 var _ ports.GameEngine = (*Engine)(nil)
 
 // NewEngine создаёт движок с миром Ark и зарегистрированными системами.
-func NewEngine() *Engine {
+// snapshot — JSON от ark-serde (github.com/mlange-42/ark-serde, Serialize); пустой слайс = пустой мир.
+func NewEngine(snapshot []byte) (*Engine, error) {
 	w := ecs.NewWorld()
 	mapper := ecs.NewMap4[world.PlayerRef, world.GridPos, world.Speed, world.Health](w)
 	filter := ecs.NewFilter4[world.PlayerRef, world.GridPos, world.Speed, world.Health](w)
-
-	return &Engine{
+	reg := NewSystemRegistry(mapper, filter)
+	e := &Engine{
 		world:        w,
 		byUser:       make(map[int64]ecs.Entity),
 		playerMapper: mapper,
-		systems:      NewSystemRegistry(mapper, filter),
+		systems:      reg,
 	}
+	if err := e.applyArkWorldSnapshot(snapshot); err != nil {
+		return nil, err
+	}
+	return e, nil
 }
 
 // ProcessTick применяет действия и возвращает доменные события.

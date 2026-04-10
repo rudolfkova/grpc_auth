@@ -106,7 +106,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 | Прикладной сервис | `internal/app/game` | Тикер, очередь действий, маршаллинг в `Envelope` |
 | Адаптер WS | `internal/ports/ws/game` | HTTP/WebSocket |
 | Инфраструктура ECS | `internal/infrastructure/gameecs` | Ark `World`, `Engine`, системы, `SystemRegistry` |
-| Сборка | `cmd/game-service` | `gameecs.NewEngine()` → `app.NewService(engine, ...)` |
+| Сборка | `cmd/game-service` | `worldclient.GetWorld` (если задан `world_id`) → `gameecs.NewEngine(snapshot)` → `app.NewService(engine, ...)` |
 
 ## Движок: ECS (Ark)
 
@@ -139,4 +139,10 @@ WebSocket-сервис игрового мира: принимает дейст�
 go build -o /tmp/game-service ./cmd/game-service
 ```
 
-Переменные окружения и порт — см. `cmd/game-service` и `internal/config`.
+Конфиг и порт — `cmd/game-service`, `internal/config`, `deploy/docker/config-game.toml`.
+
+**Лобби / мир:** поле `world_id` в TOML или переменная окружения **`WORLD_ID`**. Если в окружении процесса переменная **`WORLD_ID` задана** (в т.ч. пустая строка), она **перекрывает** значение из файла — так удобнее прокидывать id из Docker/Kubernetes на инстанс. В `docker-compose` для `game-service` объявлен проброс `WORLD_ID` с хоста (`environment: - WORLD_ID`). Пример: `WORLD_ID=my-lobby-world docker compose up -d game-service`.
+
+**Загрузка из world-service:** если **`world_id` непустой**, при старте выполняется gRPC **`GetWorld`** на **`world_service_addr`** (TOML или **`WORLD_SERVICE_ADDR`**). Опционально **`world_service_token`** / **`WORLD_SERVICE_TOKEN`** (`x-service-token`). Поле **`snapshot`** (bytes) должно быть **JSON от [ark-serde](https://github.com/mlange-42/ark-serde)** — тот же формат, что даёт `arkserde.Serialize(world)` для `*ecs.World` с зарегистрированными компонентами **`world.PlayerRef`**, **`world.GridPos`**, **`world.Speed`**, **`world.Health`**. Десериализация: `arkserde.Deserialize` в пустой мир, затем восстанавливается индекс `user_id → entity` (дубликаты `PlayerRef.UserID` или `UserID == 0` — ошибка старта). Пустой `snapshot` — пустой мир. Старый самодельный JSON вида `{"players":[...]}` **больше не поддерживается**. Если задан `world_id`, но пустой `world_service_addr`, процесс завершится с ошибкой.
+
+Снимок для БД можно получить из отладочного/утилитарного кода, вызвав `arkserde.Serialize` на том же наборе компонентов, что и движок (см. тест `TestNewEngine_fromArkSerdeSnapshot`).

@@ -169,10 +169,17 @@ services:
 
   game-service:
     build:
-      context: ./game-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: game-service/Dockerfile
     container_name: grpc-game-service
+    environment:
+      - WORLD_ID
+      - WORLD_SERVICE_ADDR
+      - WORLD_SERVICE_TOKEN
     command: ["-config-path", "/configs/config-game.toml"]
+    depends_on:
+      world-service:
+        condition: service_started
     volumes:
       - ./deploy/docker/config-game.toml:/configs/config-game.toml:ro
     ports:

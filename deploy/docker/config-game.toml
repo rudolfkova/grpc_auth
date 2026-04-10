@@ -3,3 +3,9 @@ log_level = "DEBUG"
 tick_rate = "50ms"
 queue_size = 1024
 jwt_secret = "123"
+# id мира (лобби); в Docker чаще задают через env WORLD_ID с хоста / оркестратора.
+world_id = ""
+# gRPC world-service (имя сервиса в docker-compose). С хоста: localhost:50054.
+world_service_addr = "world-service:50054"
+# Если в world-service задан service_token; можно задать через WORLD_SERVICE_TOKEN.
+world_service_token = ""
