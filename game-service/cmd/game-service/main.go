@@ -42,11 +42,27 @@ func main() {
 		if cfg.WorldServiceAddr == "" {
 			log.Fatalf("world_id is set but world_service_addr is empty (set in config or %s)", config.EnvWorldServiceAddr)
 		}
-		fetchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		fetched, err := worldclient.GetWorld(fetchCtx, cfg.WorldServiceAddr, cfg.WorldServiceToken, cfg.WorldID)
-		cancel()
-		if err != nil {
-			log.Fatalf("load world from world-service: %v", err)
+		// world-service после depends_on может ещё поднимать Postgres и слушать gRPC позже первого «started» контейнера.
+		const (
+			perTryTimeout = 12 * time.Second
+			retryInterval = 2 * time.Second
+			maxWait       = 90 * time.Second
+		)
+		deadline := time.Now().Add(maxWait)
+		var fetched *worldclient.Fetched
+		var err error
+		for {
+			fetchCtx, cancel := context.WithTimeout(context.Background(), perTryTimeout)
+			fetched, err = worldclient.GetWorld(fetchCtx, cfg.WorldServiceAddr, cfg.WorldServiceToken, cfg.WorldID)
+			cancel()
+			if err == nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				log.Fatalf("load world from world-service: %v", err)
+			}
+			logger.Warn("world-service not ready, retrying", "addr", cfg.WorldServiceAddr, "world_id", cfg.WorldID, "err", err)
+			time.Sleep(retryInterval)
 		}
 		logger.Info("world snapshot fetched",
 			"world_id", cfg.WorldID,

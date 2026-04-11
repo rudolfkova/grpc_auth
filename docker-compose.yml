@@ -35,6 +35,7 @@ services:
         psql -h 127.0.0.1 -U messenger -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='auth_db'" | grep -q 1 || psql -h 127.0.0.1 -U messenger -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE auth_db OWNER messenger"
         psql -h 127.0.0.1 -U messenger -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='chat_db'" | grep -q 1 || psql -h 127.0.0.1 -U messenger -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE chat_db OWNER messenger"
         psql -h 127.0.0.1 -U messenger -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='world_db'" | grep -q 1 || psql -h 127.0.0.1 -U messenger -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE world_db OWNER messenger"
+        psql -h 127.0.0.1 -U messenger -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='character_db'" | grep -q 1 || psql -h 127.0.0.1 -U messenger -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE character_db OWNER messenger"
     restart: "no"
 
   redis:
@@ -107,6 +108,24 @@ services:
       ]
     restart: "no"
 
+  migrate-character:
+    image: migrate/migrate:latest
+    network_mode: "service:postgres"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate-world:
+        condition: service_completed_successfully
+    volumes:
+      - ./character-service/migrations:/migrations/character:ro
+    command:
+      [
+        "-path", "/migrations/character",
+        "-database", "postgres://messenger:messenger@127.0.0.1:5432/character_db?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
+
   auth-service:
     build:
       context: ./auth-service
@@ -172,14 +191,16 @@ services:
       context: .
       dockerfile: game-service/Dockerfile
     container_name: grpc-game-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      - WORLD_ID
-      - WORLD_SERVICE_ADDR
-      - WORLD_SERVICE_TOKEN
+      # Обход битого bridge/DNS между контейнерами: world проброшен на хост :50054 → заходим с хоста.
+      # Рабочая сеть docker: переопредели WORLD_SERVICE_ADDR=world-service:50054
+      WORLD_SERVICE_ADDR: ${WORLD_SERVICE_ADDR:-host.docker.internal:50054}
     command: ["-config-path", "/configs/config-game.toml"]
     depends_on:
       world-service:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./deploy/docker/config-game.toml:/configs/config-game.toml:ro
     ports:
@@ -190,6 +211,12 @@ services:
       context: ./world-service
       dockerfile: Dockerfile
     container_name: grpc-world-service
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 50054 || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+      start_period: 20s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-world.toml"]
@@ -202,6 +229,24 @@ services:
       - ./deploy/docker/config-world.toml:/configs/config-world.toml:ro
     ports:
       - "50054:50054"
+
+  character-service:
+    build:
+      context: ./character-service
+      dockerfile: Dockerfile
+    container_name: grpc-character-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["-config-path", "/configs/config-character.toml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate-character:
+        condition: service_completed_successfully
+    volumes:
+      - ./deploy/docker/config-character.toml:/configs/config-character.toml:ro
+    ports:
+      - "50055:50055"
 
 volumes:
   postgres-data:

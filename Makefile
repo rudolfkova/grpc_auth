@@ -1,5 +1,5 @@
 # Сборка сервисов.
-.PHONY: build build-auth build-chat build-gateway build-game start start-auth start-chat start-gateway start-game docker-up docker-down docker-logs docker-reset docker-fix-iptables world-grpc-list world-grpc-ping
+.PHONY: build build-auth build-chat build-gateway build-game build-world build-character start start-auth start-chat start-gateway start-game docker-up docker-down docker-logs docker-reset docker-fix-iptables world-grpc-list world-grpc-ping gen-character tidy-character
 ifeq ($(OS),Windows_NT)
 	BIN_EXT := .exe
 else
@@ -18,6 +18,8 @@ build-game:
 	go build -v -o $(BIN_DIR)/game-service$(BIN_EXT) ./game-service/cmd/game-service
 build-world:
 	go build -v -o $(BIN_DIR)/world-service$(BIN_EXT) ./world-service/cmd/world-service
+build-character:
+	go build -v -o $(BIN_DIR)/character-service$(BIN_EXT) ./character-service/cmd/character-service
 
 # Проверка world-service по gRPC без локального grpcurl (образ fullstorydev/grpcurl).
 # Нужен запущенный сервис на localhost:50054. На Linux используется --network host.
@@ -92,6 +94,11 @@ gen-world:
 	  --go_out=world-service --go_opt=paths=source_relative \
 	  --go-grpc_out=world-service --go-grpc_opt=paths=source_relative \
 	  world-service/proto/world/v1/world.proto
+gen-character:
+	protoc -I character-service \
+	  --go_out=character-service --go_opt=paths=source_relative \
+	  --go-grpc_out=character-service --go-grpc_opt=paths=source_relative \
+	  character-service/proto/character/v1/character.proto
 
 # go mod tidy по сервисам.
 .PHONY: tidy
@@ -105,6 +112,8 @@ tidy-game:
 	cd game-service && go mod tidy
 tidy-world:
 	cd world-service && go mod tidy
+tidy-character:
+	cd character-service && go mod tidy
 
 # Форматирование всего репозитория.
 .PHONY: gofmt

@@ -10,4 +10,6 @@ use ./game-service
 
 use ./world-service
 
+use ./character-service
+
 use ./pkg/gamekit

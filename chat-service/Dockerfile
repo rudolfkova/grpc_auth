@@ -7,6 +7,7 @@ COPY chat-service/go.mod chat-service/go.sum ./chat-service/
 COPY gateway/go.mod gateway/go.sum ./gateway/
 COPY game-service/go.mod ./game-service/
 COPY world-service/go.mod world-service/go.sum ./world-service/
+COPY character-service/go.mod character-service/go.sum ./character-service/
 COPY pkg/gamekit/go.mod ./pkg/gamekit/
 RUN go work sync && cd chat-service && go mod download
 

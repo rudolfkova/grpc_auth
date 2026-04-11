@@ -7,8 +7,8 @@ queue_size = 1024
 jwt_secret = "123"
 # id мира в world-service (лобби). Env WORLD_ID при наличии перекрывает это значение.
 world_id = "77bd07d2-ded4-4f30-ace7-3c0d6a650562"
-# gRPC world-service (имя сервиса в docker-compose). С хоста: localhost:50054.
-world_service_addr = "world-service:50054"
+# gRPC world-service. Локально: localhost:50054. В compose game переопределяется на host.docker.internal:50054 (см. docker-compose).
+world_service_addr = "localhost:50054"
 # Если в world-service задан service_token; можно задать через WORLD_SERVICE_TOKEN.
 world_service_token = ""
 # Только этот user_id (из JWT при подключении к WS) может отправлять type "save_world". Env: SAVE_WORLD_ADMIN_USER_ID.

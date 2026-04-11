@@ -1,0 +1,4 @@
+bind_addr = ":50055"
+database_url = "postgres://messenger:messenger@host.docker.internal:15432/character_db?sslmode=disable"
+log_level = "DEBUG"
+service_token = ""

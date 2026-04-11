@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package character.v1;
+
+option go_package = "character/proto/character/v1;characterv1";
+
+// CharacterService — персонажи пользователей (внутренний gRPC; клиент — game-service, позже gateway).
+// Владелец: user_id (= user из auth). Сущность: id (= UUID персонажа).
+// Аутентификация: metadata x-service-token / Bearer, см. deploy config.
+service CharacterService {
+  rpc ResolvePlayCharacter(ResolvePlayCharacterRequest) returns (ResolvePlayCharacterResponse);
+  rpc GetCharacter(GetCharacterRequest) returns (GetCharacterResponse);
+  rpc GetCharacterByDisplayName(GetCharacterByDisplayNameRequest) returns (GetCharacterByDisplayNameResponse);
+  rpc ListCharacters(ListCharactersRequest) returns (ListCharactersResponse);
+  rpc CreateCharacter(CreateCharacterRequest) returns (CreateCharacterResponse);
+  rpc ReplaceCharacterData(ReplaceCharacterDataRequest) returns (ReplaceCharacterDataResponse);
+  rpc DeleteCharacter(DeleteCharacterRequest) returns (DeleteCharacterResponse);
+}
+
+message Character {
+  string id = 1;
+  int64 user_id = 2;
+  string display_name = 3;
+  string description = 4;
+  bytes data = 5;
+  int32 schema_version = 6;
+  int64 version = 7;
+  int64 created_at_unix = 8;
+  int64 updated_at_unix = 9;
+}
+
+message ResolvePlayCharacterRequest {
+  int64 user_id = 1;
+  string id = 2;
+}
+
+message ResolvePlayCharacterResponse {
+  bool persisted = 1;
+  Character character = 2;
+}
+
+message GetCharacterRequest {
+  int64 user_id = 1;
+  string id = 2;
+}
+
+message GetCharacterResponse {
+  Character character = 1;
+}
+
+message GetCharacterByDisplayNameRequest {
+  int64 user_id = 1;
+  string display_name = 2;
+}
+
+message GetCharacterByDisplayNameResponse {
+  Character character = 1;
+}
+
+message ListCharactersRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListCharactersResponse {
+  repeated Character characters = 1;
+}
+
+message CreateCharacterRequest {
+  int64 user_id = 1;
+  // Пусто — сервер сгенерирует UUID.
+  string id = 2;
+  string display_name = 3;
+  string description = 4;
+  bytes data = 5;
+  int32 schema_version = 6;
+}
+
+message CreateCharacterResponse {
+  Character character = 1;
+}
+
+message ReplaceCharacterDataRequest {
+  int64 user_id = 1;
+  string id = 2;
+  bytes data = 3;
+  int32 schema_version = 4;
+  // 0 — не проверять версию (как в world-service).
+  int64 expected_version = 5;
+}
+
+message ReplaceCharacterDataResponse {
+  Character character = 1;
+}
+
+message DeleteCharacterRequest {
+  int64 user_id = 1;
+  string id = 2;
+}
+
+message DeleteCharacterResponse {}

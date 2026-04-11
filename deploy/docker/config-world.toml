@@ -1,4 +1,4 @@
-bind_addr = ":50054"
+bind_addr = "0.0.0.0:50054"
 # Как auth/chat: через опубликованный порт на хосте — обходит обрывы bridge/iptables до postgres:5432.
 database_url = "postgres://messenger:messenger@host.docker.internal:15432/world_db?sslmode=disable"
 log_level = "DEBUG"
