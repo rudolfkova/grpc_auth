@@ -83,7 +83,7 @@ func main() {
 	}
 	app := gameapp.NewService(logger, engine, cfg.TickRate, cfg.QueueSize,
 		cfg.WorldServiceAddr, cfg.WorldServiceToken, cfg.SaveWorldAdminUserID)
-	wsHandler := gamews.NewHandler(logger, cfg.JWTSecret, app)
+	wsHandler := gamews.NewHandler(logger, cfg.JWTSecret, app, cfg.CharacterServiceAddr, cfg.CharacterServiceToken)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

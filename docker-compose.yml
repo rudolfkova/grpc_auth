@@ -168,8 +168,8 @@ services:
 
   gateway:
     build:
-      context: ./gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: gateway/Dockerfile
     container_name: grpc-gateway
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -180,6 +180,8 @@ services:
       chat-service:
         condition: service_started
       game-service:
+        condition: service_started
+      character-service:
         condition: service_started
     volumes:
       - ./deploy/docker/config-gateway.toml:/configs/config-gateway.toml:ro
@@ -197,9 +199,14 @@ services:
       # Обход битого bridge/DNS между контейнерами: world проброшен на хост :50054 → заходим с хоста.
       # Рабочая сеть docker: переопредели WORLD_SERVICE_ADDR=world-service:50054
       WORLD_SERVICE_ADDR: ${WORLD_SERVICE_ADDR:-host.docker.internal:50054}
+      # Тот же паттерн, что у world/gateway: иначе game→character по имени сервиса может не резолвиться (ResolvePlayCharacter DeadlineExceeded).
+      # Если DNS между контейнерами нормальный: CHARACTER_SERVICE_ADDR=character-service:50055
+      CHARACTER_SERVICE_ADDR: ${CHARACTER_SERVICE_ADDR:-host.docker.internal:50055}
     command: ["-config-path", "/configs/config-game.toml"]
     depends_on:
       world-service:
+        condition: service_healthy
+      character-service:
         condition: service_healthy
     volumes:
       - ./deploy/docker/config-game.toml:/configs/config-game.toml:ro
@@ -235,6 +242,12 @@ services:
       context: ./character-service
       dockerfile: Dockerfile
     container_name: grpc-character-service
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 50055 || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+      start_period: 25s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-character.toml"]

@@ -8,6 +8,7 @@ import (
 	"gateway/internal/middleware"
 	authv1 "gateway/proto/auth/v1"
 	chatv1 "gateway/proto/chat/v1"
+	characterv1 "character/proto/character/v1"
 	"log"
 	"log/slog"
 	"net/http"
@@ -51,8 +52,19 @@ func main() {
 	}
 	defer chatConn.Close()
 
+	var charClient characterv1.CharacterServiceClient
+	if cfg.CharacterServiceAddr != "" {
+		charConn, err := grpc.NewClient(cfg.CharacterServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Fatalf("failed to connect to character-service: %v", err)
+		}
+		defer charConn.Close()
+		charClient = characterv1.NewCharacterServiceClient(charConn)
+	}
+
 	authHandler := handler.NewAuthHandler(authv1.NewAuthServiceClient(authConn))
 	chatHandler := handler.NewChatHandler(chatv1.NewChatServiceClient(chatConn))
+	meCharsHandler := handler.NewMeCharactersHandler(charClient, cfg.JWTSecret, cfg.CharacterServiceToken)
 	wsHandler := handler.NewWSHandler(chatv1.NewChatServiceClient(chatConn), logger)
 	gameWSHandler := handler.NewGameWSHandler(logger, cfg.GameServiceAddr)
 
@@ -77,6 +89,9 @@ func main() {
 	mux.HandleFunc("POST /chat/members", chatHandler.AddMember)
 	mux.HandleFunc("DELETE /chat/members", chatHandler.RemoveMember)
 
+	// Персонажи (JWT → ListCharacters на character-service)
+	mux.HandleFunc("GET /api/me/characters", meCharsHandler.ListMyCharacters)
+
 	// WebSocket
 	mux.HandleFunc("GET /ws/subscribe", wsHandler.Subscribe)
 	mux.HandleFunc("GET /ws/game", gameWSHandler.SubscribeGame)
@@ -99,6 +114,7 @@ func main() {
 		slog.String("addr", cfg.BindAddr),
 		slog.String("auth", cfg.AuthServiceAddr),
 		slog.String("chat", cfg.ChatServiceAddr),
+		slog.String("character", cfg.CharacterServiceAddr),
 	)
 
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

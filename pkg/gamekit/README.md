@@ -82,6 +82,8 @@ import "github.com/rudolfkova/grpc_auth/pkg/gamekit"
 | `gamekit.DefaultPlayerHP` | Константа стартового HP на сервере |
 | `gamekit.PlayerFace` | Компонент `DX`,`DY` ∈ {-1,0,1} — взгляд игрока (в JSON state: `face_dx`, `face_dy`) |
 | `gamekit.DefaultPlayerFaceDX` / `DY` | Дефолт при спавне и в state при `(0,0)` в ECS: **(1, 0)** — ось +X на сетке |
+| `gamekit.CharacterStats` | STR/DEX/CON/INT/WIS/CHA — тот же тип в ECS и в JSON `character.data` / `state.players[].stats` |
+| `gamekit.CharacterPlayData` | JSON в `character-service` `data` + парсинг (`ParseCharacterPlayData`); см. `character-service/CHARACTER_EDITOR_CLIENT.md` |
 | `gamekit.TileTexture` | `Name` — строка-идентификатор текстуры у клиента |
 | `gamekit.TileSolid` | `Blocks` — если `true`, участвует в блокировке клетки для `move` |
 | `gamekit.TileLayer` | `Z` — слой в клетке `(x,y)`; несколько тайлов в одной клетке различаются по `Z` |
@@ -89,7 +91,7 @@ import "github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 На **сервере** зарегистрированы мапперы:
 
-- `Map5[PlayerRef, GridPos, Speed, Health, PlayerFace]` — игроки  
+- `Map6[PlayerRef, GridPos, Speed, Health, PlayerFace, CharacterStats]` — игроки  
 - `Map5[GridPos, TileLayer, TileFacing, TileTexture, TileSolid]` — тайлы  
 
 Клиент, который **симулирует или отображает** тот же мир через Ark, должен использовать **те же типы** в своих `MapN` / `FilterN`, иначе ark-serde и контракт разъедутся.
@@ -200,7 +202,7 @@ if env.Type == gamekit.TypeState {
 }
 ```
 
-- `Players` — `[]gamekit.Player` (`id`, `x`, `y`, `hp`, `face_dx`, `face_dy` — всегда в JSON, без `omitempty`)  
+- `Players` — `[]gamekit.Player` (`id`, `x`, `y`, `hp`, `face_dx`, `face_dy`, `stats` — всегда в JSON, без `omitempty`)  
 - `Tiles` — `[]gamekit.Tile` (`x`, `y`, `layer`, `rotation`, `texture`, `blocks`)  
 - `TickAt` — `time.Time` (JSON с сервера в формате времени Go)
 

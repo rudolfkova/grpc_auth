@@ -17,6 +17,11 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
+// writeProblem — стабильные code + message (для публичных API вроде /api/me/characters).
+func writeProblem(w http.ResponseWriter, status int, code, message string) {
+	writeJSON(w, status, map[string]string{"code": code, "message": message})
+}
+
 func decodeJSON(r *http.Request, v any) error {
 	defer func() {
 		if err := r.Body.Close(); err != nil {

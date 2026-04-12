@@ -8,13 +8,13 @@ import (
 
 // SnapshotSystem строит снимок игроков и тайлов.
 type SnapshotSystem struct {
-	playerFilter *ecs.Filter5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace]
+	playerFilter *ecs.Filter6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats]
 	tileFilter   *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
 }
 
 // NewSnapshotSystem создаёт систему снимка.
 func NewSnapshotSystem(
-	playerFilter *ecs.Filter5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace],
+	playerFilter *ecs.Filter6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats],
 	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 ) *SnapshotSystem {
 	return &SnapshotSystem{playerFilter: playerFilter, tileFilter: tileFilter}
@@ -26,10 +26,14 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 
 	out := make([]gamekit.Player, 0, 64)
 	for q.Next() {
-		ref, pos, _, hp, face := q.Get()
+		ref, pos, _, hp, face, st := q.Get()
 		fdx, fdy := face.DX, face.DY
 		if fdx == 0 && fdy == 0 {
 			fdx, fdy = gamekit.DefaultPlayerFaceDX, gamekit.DefaultPlayerFaceDY
+		}
+		stats := *st
+		if stats.IsUnset() {
+			stats = gamekit.DefaultCharacterStats()
 		}
 		out = append(out, gamekit.Player{
 			ID:     ref.UserID,
@@ -38,6 +42,7 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 			HP:     hp.HP,
 			FaceDX: fdx,
 			FaceDY: fdy,
+			Stats:  stats,
 		})
 	}
 	ctx.Players = out

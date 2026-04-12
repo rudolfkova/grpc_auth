@@ -30,6 +30,7 @@ func (h *GameWSHandler) SubscribeGame(w http.ResponseWriter, r *http.Request) {
 	q := url.Values{}
 	q.Set("token", r.URL.Query().Get("token"))
 	q.Set("session_id", r.URL.Query().Get("session_id"))
+	q.Set("character_id", r.URL.Query().Get("character_id"))
 
 	backendURL := "ws://" + h.gameServiceAddr + "/ws/game?" + q.Encode()
 

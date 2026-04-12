@@ -8,7 +8,7 @@
 |--------|-----------|
 | Формат тела запросов | JSON, заголовок `Content-Type: application/json` |
 | Формат успешных ответов | JSON |
-| Ошибки | JSON `{"error": "<текст>"}`, HTTP-статус по смыслу (400, 401, 404, 409, 429, 500, 503 и т.д.) |
+| Ошибки | Обычно JSON `{"error": "<текст>"}`; для **`GET /api/me/characters`** — стабильное тело `{"code":"<машинное имя>","message":"<текст>"}` (см. раздел ниже). HTTP-статус по смыслу (400, 401, 404, 409, 429, 502, 503, 504 и т.д.). |
 | CORS | `Access-Control-Allow-Origin: *`, методы `GET, POST, PUT, DELETE, OPTIONS`, заголовки `Content-Type, Authorization`. Для preflight шлите `OPTIONS` — ответ `204 No Content`. |
 | Даты в JSON | Поля времени сериализуются как строки **RFC3339** (например `2026-04-09T15:04:05+03:00`). |
 
@@ -27,6 +27,67 @@ Authorization: Bearer <access_token>
 ### Эндпоинт без токена в заголовке
 
 - `GET /auth/is-admin?user_id=...` — проверка флага админа по **числовому** `user_id` в query (отдельно от JWT в этом gateway).
+
+---
+
+## Персонажи для игры (`GET /api/me/characters`)
+
+Игровой клиент после логина (есть **access JWT**) может **без gRPC и без `service_token`** получить список персонажей текущего пользователя перед WebSocket **`/ws/game`**.
+
+### `GET /api/me/characters`
+
+**Идемпотентно**, только **GET**.
+
+**Заголовок (обязательно):**
+
+```http
+Authorization: Bearer <access_token>
+```
+
+Тот же access token, что из **`POST /auth/login`** / **`POST /auth/refresh`**. Секрет подписи JWT на gateway должен совпадать с auth-service (**`jwt_secret`** в `config-gateway.toml`).
+
+**Query (опционально):**
+
+| Параметр | По умолчанию | Описание |
+|----------|---------------|----------|
+| `limit`  | `50`          | Максимум **`100`** (больше — режется до 100). Меньше `1` игнорируется, остаётся 50. |
+| `offset` | `0`           | Смещение для пагинации (неотрицательное целое). |
+
+**Поведение:** gateway валидирует JWT → из claims читает **`user_id`** → вызывает character-service **`ListCharacters(user_id, limit, offset)`** с внутреннего процесса (при настройке — metadata **`x-service-token`** из **`character_service_token`**).
+
+**Успешный ответ `200`:**
+
+```json
+{
+  "characters": [
+    {
+      "id": "<uuid>",
+      "display_name": "...",
+      "description": "...",
+      "schema_version": 2,
+      "version": 7
+    }
+  ]
+}
+```
+
+Поле **`data`** (blob персонажа) **не отдаётся** в листинге (меньше трафика). Детали blob — в **`character-service/CHARACTER_EDITOR_CLIENT.md`**; при необходимости позже можно добавить **`GET /api/me/characters/:id`**.
+
+**Ошибки (тело `{"code","message"}`):**
+
+| HTTP | `code` | Когда |
+|------|--------|--------|
+| `401` | `unauthorized` | Нет/битый Bearer, истёкший или невалидный JWT, в claims нет `user_id`. |
+| `405` | `method_not_allowed` | Не GET. |
+| `503` | `character_service_unconfigured` | В конфиге gateway пустой **`character_service_addr`** (эндпоинт отключён). |
+| `503` | `character_service_unavailable` | gRPC **`Unavailable`** от character-service (сеть, сервис не поднят). |
+| `504` | `character_service_timeout` | **`DeadlineExceeded`**. |
+| `400` | `character_service_invalid_argument` | Некорректные аргументы со стороны character-service. |
+| `502` | `character_service_error` / `character_upstream_error` | Прочие ошибки gRPC или не-gRPC при вызове upstream. |
+
+**Связка с игрой:** после выбора UUID из массива откройте **`GET /ws/game?token=<access_token>&character_id=<uuid>`** (см. **`game-service/README.md`**). Gateway пробрасывает **`character_id`** в game-service.
+
+**Конфиг gateway:** `character_service_addr`, `character_service_token` (опционально, если на character-service включён `service_token`).
 
 ---
 
@@ -393,12 +454,13 @@ Authorization: Bearer <access_token>
 
 **Query:**
 
-| Параметр     | Описание |
-|--------------|----------|
-| `token`      | Access JWT (как в игровом WS). |
-| `session_id` | Опционально; пробрасывается в backend как query-параметр. |
+| Параметр        | Описание |
+|-----------------|----------|
+| `token`         | Access JWT (как в игровом WS). |
+| `character_id`  | UUID персонажа (обязателен, если на game-service настроен character-service). Пробрасывается в game-service. |
+| `session_id`    | Опционально; пробрасывается в backend как query-параметр. |
 
-Пример: `ws://<host>/ws/game?token=<access_token>`
+Пример: `ws://<host>/ws/game?token=<access_token>&character_id=<uuid>`
 
 Если game-service недоступен, клиент может получить одно JSON-сообщение и закрытие:
 
@@ -424,6 +486,7 @@ Authorization: Bearer <access_token>
 | POST | `/auth/logout` | Выход (refresh) |
 | POST | `/auth/refresh` | Новые токены |
 | GET | `/auth/is-admin` | Админ по `user_id` |
+| GET | `/api/me/characters` | Список персонажей текущего пользователя (Bearer JWT → character-service) |
 | POST | `/chat/create` | Создать чат |
 | DELETE | `/chat` | Удалить чат (JSON body) |
 | POST | `/chat/members` | Добавить участника |
@@ -441,5 +504,6 @@ Authorization: Bearer <access_token>
 
 1. После **login** сохраняйте `access_token` и подставляйте в `Authorization: Bearer ...` для REST чата.
 2. Для **WebSocket чата** используйте тот же access token **только** в query `token=...` (не дублируйте `Bearer` в query — gateway добавит сам для gRPC).
-3. Для **WebSocket игры** передавайте `token` так же, как ожидает game-service (сырой JWT в query).
+3. Для **WebSocket игры** передавайте `token` так же, как ожидает game-service (сырой JWT в query); при включённом character-service на game — добавьте **`character_id`** (сначала **`GET /api/me/characters`**).
 4. При **429** / **503** имеет смысл повторить запрос с backoff.
+5. Ошибки **`GET /api/me/characters`** логируйте по полю **`code`** в JSON.

@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	gameapp "game/internal/app/game"
 	"game/internal/domain/models"
+	"game/internal/infrastructure/characterclient"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -31,6 +34,9 @@ type Handler struct {
 	jwtSecret string
 	app       *gameapp.Service
 
+	characterServiceAddr  string
+	characterServiceToken string
+
 	mu      sync.RWMutex
 	clients map[*websocket.Conn]clientConn
 	byUser  map[int64]map[*websocket.Conn]chan gamekit.Envelope
@@ -41,13 +47,15 @@ type clientConn struct {
 	out    chan gamekit.Envelope
 }
 
-func NewHandler(logger *slog.Logger, jwtSecret string, app *gameapp.Service) *Handler {
+func NewHandler(logger *slog.Logger, jwtSecret string, app *gameapp.Service, characterServiceAddr, characterServiceToken string) *Handler {
 	h := &Handler{
-		logger:    logger,
-		jwtSecret: jwtSecret,
-		app:       app,
-		clients:   make(map[*websocket.Conn]clientConn),
-		byUser:    make(map[int64]map[*websocket.Conn]chan gamekit.Envelope),
+		logger:                 logger,
+		jwtSecret:              jwtSecret,
+		app:                    app,
+		characterServiceAddr:   strings.TrimSpace(characterServiceAddr),
+		characterServiceToken:  characterServiceToken,
+		clients:                make(map[*websocket.Conn]clientConn),
+		byUser:                 make(map[int64]map[*websocket.Conn]chan gamekit.Envelope),
 	}
 	go h.broadcastSnapshots()
 	return h
@@ -116,11 +124,70 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.String("email", email),
 	)
 
+	var (
+		characterPersisted     bool
+		characterPlay          characterclient.PlayCharacter
+		characterSessionActive bool
+	)
+	if h.characterServiceAddr != "" {
+		rawID := strings.TrimSpace(r.URL.Query().Get("character_id"))
+		if rawID == "" {
+			_ = conn.WriteJSON(map[string]any{
+				"service": "game",
+				"type":    "error",
+				"payload": map[string]any{"message": "character_id query parameter is required when character service is configured"},
+			})
+			_ = conn.Close()
+			return
+		}
+		if _, err := uuid.Parse(rawID); err != nil {
+			_ = conn.WriteJSON(map[string]any{
+				"service": "game",
+				"type":    "error",
+				"payload": map[string]any{"message": "character_id must be a valid UUID"},
+			})
+			_ = conn.Close()
+			return
+		}
+		resolveCtx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		resp, err := characterclient.ResolvePlayCharacter(resolveCtx, h.characterServiceAddr, h.characterServiceToken, userID, rawID)
+		cancel()
+		if err != nil {
+			h.logger.Warn("ResolvePlayCharacter failed", slog.Int64("user_id", userID), slog.String("err", err.Error()))
+			_ = conn.WriteJSON(map[string]any{
+				"service": "game",
+				"type":    "error",
+				"payload": map[string]any{"message": "character resolve failed: " + err.Error()},
+			})
+			_ = conn.Close()
+			return
+		}
+		ch := resp.GetCharacter()
+		if ch == nil || strings.TrimSpace(ch.GetId()) == "" {
+			_ = conn.WriteJSON(map[string]any{
+				"service": "game",
+				"type":    "error",
+				"payload": map[string]any{"message": "character resolve returned empty character"},
+			})
+			_ = conn.Close()
+			return
+		}
+		characterPersisted = resp.GetPersisted()
+		characterPlay = characterclient.PlayCharacter{
+			ID:          ch.GetId(),
+			DisplayName: ch.GetDisplayName(),
+			Description: ch.GetDescription(),
+		}
+		characterSessionActive = true
+		h.app.PrepareCharacterJoin(userID, ch.GetData())
+	}
+
 	defer func() {
 		h.logger.Info("player disconnected",
 			slog.Int64("user_id", userID),
 			slog.String("email", email),
 		)
+		var lastForUser bool
 		h.mu.Lock()
 		if c, ok := h.clients[conn]; ok {
 			delete(h.clients, conn)
@@ -128,10 +195,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				delete(m, conn)
 				if len(m) == 0 {
 					delete(h.byUser, c.userID)
+					lastForUser = true
 				}
 			}
 		}
 		h.mu.Unlock()
+		if characterSessionActive && lastForUser {
+			saveCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			err := h.app.PersistCharacterPlaySession(saveCtx, h.characterServiceAddr, h.characterServiceToken, userID, characterPersisted, characterPlay)
+			cancel()
+			if err != nil {
+				h.logger.Warn("PersistCharacterPlaySession failed", slog.Int64("user_id", userID), slog.String("err", err.Error()))
+			}
+		}
 		close(out)
 		_ = conn.Close()
 	}()

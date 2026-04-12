@@ -79,14 +79,16 @@ type SaveWorldResultPayload struct {
 	Version int64  `json:"version,omitempty"`
 }
 
-// Player — элемент массива players в payload события TypeState.
+// Player — проекция игрока в payload события TypeState (см. StatePayload.Players).
+// Тот же тип используется в game-service при Broadcast; дублировать поля в других пакетах не нужно.
 type Player struct {
-	ID     int64 `json:"id"`
-	X      int   `json:"x"`
-	Y      int   `json:"y"`
-	HP     int   `json:"hp"`
-	FaceDX int   `json:"face_dx"`
-	FaceDY int   `json:"face_dy"`
+	ID     int64          `json:"id"`
+	X      int            `json:"x"`
+	Y      int            `json:"y"`
+	HP     int            `json:"hp"`
+	FaceDX int            `json:"face_dx"`
+	FaceDY int            `json:"face_dy"`
+	Stats  CharacterStats `json:"stats"`
 }
 
 // Tile — элемент массива tiles в payload события TypeState.
@@ -99,7 +101,7 @@ type Tile struct {
 	Blocks   bool   `json:"blocks"`
 }
 
-// StatePayload — форма payload у TypeState (для json.Unmarshal на клиенте).
+// StatePayload — полный JSON payload у TypeState (сервер шлёт это же из gamekit; клиент Unmarshal сюда).
 type StatePayload struct {
 	Players []Player  `json:"players"`
 	Tiles   []Tile    `json:"tiles"`

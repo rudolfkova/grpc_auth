@@ -13,6 +13,7 @@ RUN go work sync && cd game-service && go mod download
 
 COPY game-service ./game-service
 COPY world-service ./world-service
+COPY character-service ./character-service
 COPY pkg/gamekit ./pkg/gamekit
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/game-service ./game-service/cmd/game-service
 

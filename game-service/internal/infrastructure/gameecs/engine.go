@@ -20,7 +20,7 @@ type Engine struct {
 
 	byUser map[int64]ecs.Entity
 
-	playerMapper *ecs.Map5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace]
+	playerMapper *ecs.Map6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats]
 	systems      *SystemRegistry
 	moveIntents  MoveIntentStore
 
@@ -39,8 +39,8 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int) (*Engine, error) {
 		movementApplyEveryNTicks = 1
 	}
 	w := ecs.NewWorld()
-	playerMapper := ecs.NewMap5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace](w)
-	playerFilter := ecs.NewFilter5[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace](w)
+	playerMapper := ecs.NewMap6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats](w)
+	playerFilter := ecs.NewFilter6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats](w)
 	tileMapper := ecs.NewMap5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	tileFilter := ecs.NewFilter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter)
@@ -78,12 +78,7 @@ func (e *Engine) ProcessTick(actions []models.Action) []models.Event {
 	}
 	players, tiles := e.systems.Update(tickCtx, actions)
 
-	type statePayload struct {
-		Players []gamekit.Player `json:"players"`
-		Tiles   []gamekit.Tile   `json:"tiles"`
-		TickAt  time.Time        `json:"tick_at"`
-	}
-	emit.Broadcast("state", statePayload{
+	emit.Broadcast("state", gamekit.StatePayload{
 		Players: players,
 		Tiles:   tiles,
 		TickAt:  time.Now().UTC(),
@@ -108,13 +103,60 @@ func (e *Engine) EnsurePlayerEntity(userID int64) ecs.Entity {
 		delete(e.byUser, userID)
 	}
 
+	st := gamekit.DefaultCharacterStats()
 	ent := e.playerMapper.NewEntity(
 		&gamekit.PlayerRef{UserID: userID},
 		&gamekit.GridPos{X: 0, Y: 0},
 		&gamekit.Speed{MaxStep: 1},
 		&gamekit.Health{HP: gamekit.DefaultPlayerHP},
 		&gamekit.PlayerFace{DX: gamekit.DefaultPlayerFaceDX, DY: gamekit.DefaultPlayerFaceDY},
+		&st,
 	)
 	e.byUser[userID] = ent
 	return ent
+}
+
+// EnsurePlayerJoin создаёт сущность при первом заходе user_id из CharacterPlayData; если игрок уже есть — не меняет компоненты.
+func (e *Engine) EnsurePlayerJoin(userID int64, d gamekit.CharacterPlayData) {
+	d.Normalize()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if ent, ok := e.byUser[userID]; ok && e.playerMapper.HasAll(ent) {
+		return
+	}
+	hp := d.HP
+	if hp <= 0 {
+		hp = gamekit.DefaultPlayerHP
+	}
+	faceDX, faceDY := d.FaceDX, d.FaceDY
+	if faceDX == 0 && faceDY == 0 {
+		faceDX, faceDY = gamekit.DefaultPlayerFaceDX, gamekit.DefaultPlayerFaceDY
+	}
+	st := d.Stats
+	ent := e.playerMapper.NewEntity(
+		&gamekit.PlayerRef{UserID: userID},
+		&gamekit.GridPos{X: d.X, Y: d.Y},
+		&gamekit.Speed{MaxStep: 1},
+		&gamekit.Health{HP: hp},
+		&gamekit.PlayerFace{DX: faceDX, DY: faceDY},
+		&st,
+	)
+	e.byUser[userID] = ent
+}
+
+// PlayerCharacterData сериализует CharacterPlayData в JSON для character.data.
+func (e *Engine) PlayerCharacterData(userID int64) ([]byte, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	ent, ok := e.byUser[userID]
+	if !ok || !e.playerMapper.HasAll(ent) {
+		return gamekit.MarshalCharacterPlayData(gamekit.NewDefaultCharacterPlayData())
+	}
+	_, pos, _, hp, face, st := e.playerMapper.Get(ent)
+	cpd := gamekit.CharacterPlayData{
+		X: pos.X, Y: pos.Y,
+		HP: hp.HP, FaceDX: face.DX, FaceDY: face.DY,
+		Stats: *st,
+	}
+	return gamekit.MarshalCharacterPlayData(cpd)
 }

@@ -6,6 +6,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 
 - **Протокол:** WebSocket (текстовые JSON-сообщения).
 - **Аутентификация:** JWT в query-параметре `token`. В claims ожидается поле `user_id` (число) — идентификатор игрока. Поле `email` (строка) подставляется auth-сервисом в access-токен; для старых токенов без `email` в логах будет пустая строка.
+- **Персонаж (character-service):** если в конфиге задан **`character_service_addr`** (TOML или переменная **`CHARACTER_SERVICE_ADDR`**), при открытии WS **обязателен** query-параметр **`character_id`** — UUID персонажа, который игрок **выбирает на клиенте** (обычно после **`ListCharacters`** по gRPC или через ваш HTTP-слой). Сервер вызывает **`ResolvePlayCharacter(user_id, character_id)`**, поднимает данные из **`character.data`** в ECS; при отключении **последнего** сокета этого `user_id` пишет обновлённый blob в character-service. Опционально **`CHARACTER_SERVICE_TOKEN`** / `character_service_token` — metadata **`x-service-token`**. Если адрес character-service **пустой**, поведение как раньше: достаточно только **`token`**, персонаж по WS не привязывается. Через **gateway** тот же **`character_id`** нужно передать в query — проксируется на game-service. Подробный JSON **`character.data`** и контракт для редактора: **`character-service/CHARACTER_EDITOR_CLIENT.md`**.
 - При невалидном токене сервер отправляет одно JSON-сообщение и закрывает соединение:
 
 ```json
@@ -17,6 +18,16 @@ WebSocket-сервис игрового мира: принимает дейст�
 ```
 
 Точный URL зависит от деплоя (например, за gateway: путь к игровому WS, как настроено в `gateway`).
+
+### Ошибка `character resolve failed: ... DeadlineExceeded`
+
+Game-service не смог за отведённое время установить gRPC к **`character_service_addr`**.
+
+- **Процесс game на хосте, character в Docker** — в TOML / env укажите **`localhost:50055`** (порт проброшен на хост), **не** имя `character-service` (оно DNS-ится только между контейнерами).
+- **Оба в Docker (compose)** — по умолчанию в `docker-compose.yml` для game задано **`CHARACTER_SERVICE_ADDR=host.docker.internal:50055`** (тот же обход «битого» DNS, что и для `WORLD_SERVICE_ADDR`). Если у вас нормальная сеть между контейнерами, можно переопределить на **`character-service:50055`**. Дождитесь **healthy** у `character-service`.
+- **Сервис не поднят / порт закрыт** — проверьте логи `character-service` и что миграции прошли.
+
+В сообщении об ошибке после обновления сервера видно **`character_service="<адрес>"`**, чтобы быстрее поймать опечатку в конфиге.
 
 ## Входящие сообщения (клиент → сервер)
 
@@ -136,7 +147,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 - **Broadcast:** события без привязки к одному пользователю уходят всем подключённым клиентам.
 - **Точечно:** если у события задан получатель (по `user_id`), сообщение получают только соединения этого пользователя. Сейчас так уходит **`save_world_result`** (только инициатор сохранения).
 
-Типы событий задаёт движок. Событие **`state`** (broadcast каждый тик): `payload` содержит **`players`** (массив `{id,x,y,hp,face_dx,face_dy}` — направление для анимаций, см. `pkg/gamekit`), **`tiles`** (массив `{x,y,layer,rotation,texture,blocks}`), **`tick_at`**. Если у любого тайла в клетке `blocks: true`, в клетку нельзя войти действием `move`.
+Типы событий задаёт движок. Событие **`state`** (broadcast каждый тик): `payload` — **`gamekit.StatePayload`**: **`players`** (массив `gamekit.Player`: `id`, `x`, `y`, `hp`, `face_dx`, `face_dy`, **`stats`** — характеристики `str`…`cha`, см. `pkg/gamekit`), **`tiles`**, **`tick_at`**. Если у любого тайла в клетке `blocks: true`, в клетку нельзя войти действием `move`.
 
 **`face_dx` / `face_dy`:** целые в **{-1, 0, 1}**, совместимы с осями `move` и координатами клетки: **+X** — в сторону увеличения `x` (условно «вправо»), **+Y** — увеличения `y` (условно «вниз»). Обновляются при **успешном** шаге по сетке (в т.ч. полушаг лесенки при диагонали); при блоке стеной не меняются. При **первом спавне** игрока — **`(1, 0)`**. Ключи **всегда** присутствуют в JSON. Если в сохранённом мире в ECS было `(0, 0)`, в `state` отдаётся **`gamekit.DefaultPlayerFaceDX` / `DY`** (те же 1, 0).
 
@@ -202,6 +213,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 | `TileSolid` | `Blocks` — запрет входа в клетку при `move` (если хотя бы один тайл в клетке блокирует) |
 | `Speed` | `MaxStep` — при записи интента из `move` дельта по каждой оси режется в **[-MaxStep, MaxStep]**; за один **тик** выполняется не больше одного шага с этой дельтой. При спавне **1**. При `MaxStep <= 0` движение отключено. |
 | `Health` | `HP`; старт **`gamekit.DefaultPlayerHP`** (10) |
+| `CharacterStats` | STR/DEX/CON/INT/WIS/CHA — в `state` как вложенный объект **`stats`**; при загрузке старого снимка мира без этого компонента он добавляется со значениями по умолчанию (10) |
 
 **Системы** (`internal/infrastructure/gameecs`, интерфейс `System` — `Update(*TickContext)`):
 
@@ -225,7 +237,7 @@ go build -o /tmp/game-service ./cmd/game-service
 
 **Лобби / мир:** поле `world_id` в TOML или переменная окружения **`WORLD_ID`**. Если в окружении процесса переменная **`WORLD_ID` задана** (в т.ч. пустая строка), она **перекрывает** значение из файла — так удобнее прокидывать id из Docker/Kubernetes на инстанс. В `docker-compose` для `game-service` объявлен проброс `WORLD_ID` с хоста (`environment: - WORLD_ID`). Пример: `WORLD_ID=my-lobby-world docker compose up -d game-service`.
 
-**Загрузка из world-service:** если **`world_id` непустой**, при старте выполняется gRPC **`GetWorld`** на **`world_service_addr`** (TOML или **`WORLD_SERVICE_ADDR`**). Опционально **`world_service_token`** / **`WORLD_SERVICE_TOKEN`** (`x-service-token`). Поле **`snapshot`** (bytes) должно быть **JSON от [ark-serde](https://github.com/mlange-42/ark-serde)** — тот же формат, что даёт `arkserde.Serialize(world)` для `*ecs.World` с зарегистрированными компонентами игрока **`PlayerRef`**, **`GridPos`**, **`Speed`**, **`Health`**, **`PlayerFace`** (все из `gamekit`). Десериализация: `arkserde.Deserialize` в пустой мир, затем восстанавливается индекс `user_id → entity` (дубликаты `PlayerRef.UserID` или `UserID == 0` — ошибка старта). Пустой `snapshot` — пустой мир. Старые снимки **без** `PlayerFace` могут не загрузиться или дать `(0,0)` в ECS — в **`state`** тогда подставляется **`DefaultPlayerFaceDX`/`DY`** (1, 0). Старый самодельный JSON вида `{"players":[...]}` **больше не поддерживается**. Если задан `world_id`, но пустой `world_service_addr`, процесс завершится с ошибкой.
+**Загрузка из world-service:** если **`world_id` непустой**, при старте выполняется gRPC **`GetWorld`** на **`world_service_addr`** (TOML или **`WORLD_SERVICE_ADDR`**). Опционально **`world_service_token`** / **`WORLD_SERVICE_TOKEN`** (`x-service-token`). Поле **`snapshot`** (bytes) должно быть **JSON от [ark-serde](https://github.com/mlange-42/ark-serde)** — тот же формат, что даёт `arkserde.Serialize(world)` для `*ecs.World` с компонентами игрока из `gamekit`: **`PlayerRef`**, **`GridPos`**, **`Speed`**, **`Health`**, **`PlayerFace`**, **`CharacterStats`**. Десериализация: `arkserde.Deserialize` в пустой мир, затем к сущностям без **`CharacterStats`** добавляется компонент по умолчанию, восстанавливается индекс `user_id → entity` (дубликаты `PlayerRef.UserID` или `UserID == 0` — ошибка старта). Пустой `snapshot` — пустой мир. Старые снимки **без** `PlayerFace` могут не загрузиться или дать `(0,0)` в ECS — в **`state`** тогда подставляется **`DefaultPlayerFaceDX`/`DY`** (1, 0). Старый самодельный JSON вида `{"players":[...]}` **больше не поддерживается**. Если задан `world_id`, но пустой `world_service_addr`, процесс завершится с ошибкой.
 
 **Сохранение из игры** (редактор): см. входящее событие **`save_world`** выше; для записи в world-service адрес gRPC должен быть задан независимо от того, задан ли **`world_id`** при старте (пустой `world_id` = пустой мир в памяти, сохранить его под именем всё равно можно).
 

@@ -28,12 +28,12 @@ func TestEngine_MoveAndHit(t *testing.T) {
 	defer e.mu.Unlock()
 
 	ent2 := e.EnsurePlayerEntity(2)
-	_, _, _, hp, _ := e.playerMapper.Get(ent2)
+	_, _, _, hp, _, _ := e.playerMapper.Get(ent2)
 	if hp.HP != gamekit.DefaultPlayerHP-3 {
 		t.Fatalf("target HP: want %d, got %d", gamekit.DefaultPlayerHP-3, hp.HP)
 	}
 	ent1 := e.EnsurePlayerEntity(1)
-	_, pos, _, _, _ := e.playerMapper.Get(ent1)
+	_, pos, _, _, _, _ := e.playerMapper.Get(ent1)
 	if pos.X != 1 || pos.Y != 0 {
 		t.Fatalf("mover position: want (1,0), got (%d,%d)", pos.X, pos.Y)
 	}
@@ -129,7 +129,7 @@ func TestEngine_manyMoveMessagesOneCellPerTick(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	ent1 := e.EnsurePlayerEntity(1)
-	_, pos, _, _, _ := e.playerMapper.Get(ent1)
+	_, pos, _, _, _, _ := e.playerMapper.Get(ent1)
 	if pos.X != 1 || pos.Y != 0 {
 		t.Fatalf("many moves in one tick: want (1,0), got (%d,%d)", pos.X, pos.Y)
 	}
@@ -146,7 +146,7 @@ func TestEngine_moveIntentPersistsAcrossTicks(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	ent1 := e.EnsurePlayerEntity(1)
-	_, pos, _, _, _ := e.playerMapper.Get(ent1)
+	_, pos, _, _, _, _ := e.playerMapper.Get(ent1)
 	if pos.X != 2 || pos.Y != 0 {
 		t.Fatalf("intent without new messages: want (2,0), got (%d,%d)", pos.X, pos.Y)
 	}
@@ -170,7 +170,7 @@ func TestEngine_moveBlockedBySolidTile(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	ent1 := e.EnsurePlayerEntity(1)
-	_, pos, _, _, _ := e.playerMapper.Get(ent1)
+	_, pos, _, _, _, _ := e.playerMapper.Get(ent1)
 	if pos.X != 0 || pos.Y != 0 {
 		t.Fatalf("player 1 blocked at wall: want (0,0), got (%d,%d)", pos.X, pos.Y)
 	}
@@ -183,7 +183,7 @@ func TestNewEngine_fromArkSerdeSnapshot(t *testing.T) {
 	}
 	ent := src.EnsurePlayerEntity(7)
 	src.mu.Lock()
-	_, pos, sp, hp, _ := src.playerMapper.Get(ent)
+	_, pos, sp, hp, _, _ := src.playerMapper.Get(ent)
 	pos.X, pos.Y = 2, 3
 	hp.HP = 5
 	sp.MaxStep = 2
@@ -201,7 +201,7 @@ func TestNewEngine_fromArkSerdeSnapshot(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	ent2 := e.EnsurePlayerEntity(7)
-	_, pos2, sp2, hp2, _ := e.playerMapper.Get(ent2)
+	_, pos2, sp2, hp2, _, _ := e.playerMapper.Get(ent2)
 	if pos2.X != 2 || pos2.Y != 3 || hp2.HP != 5 || sp2.MaxStep != 2 {
 		t.Fatalf("loaded state: pos=(%d,%d) hp=%d max_step=%d", pos2.X, pos2.Y, hp2.HP, sp2.MaxStep)
 	}
@@ -217,9 +217,7 @@ func TestEngine_stateIncludesFacing(t *testing.T) {
 		t.Fatalf("events: %+v", evs)
 	}
 	body, _ := json.Marshal(evs[0].Payload)
-	var st struct {
-		Players []gamekit.Player `json:"players"`
-	}
+	var st gamekit.StatePayload
 	_ = json.Unmarshal(body, &st)
 	if len(st.Players) != 0 {
 		t.Fatalf("expected no players before join")
@@ -241,14 +239,14 @@ func TestEngine_diagonalIntentStaircase(t *testing.T) {
 	mv, _ := json.Marshal(gamekit.MoveIntent{DX: 1, DY: 1})
 	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "move", Payload: mv}})
 	e.mu.Lock()
-	_, pos, _, _, _ := e.playerMapper.Get(e.EnsurePlayerEntity(1))
+	_, pos, _, _, _, _ := e.playerMapper.Get(e.EnsurePlayerEntity(1))
 	e.mu.Unlock()
 	if pos.X != 1 || pos.Y != 0 {
 		t.Fatalf("diag step 1: want (1,0), got (%d,%d)", pos.X, pos.Y)
 	}
 	e.ProcessTick(nil)
 	e.mu.Lock()
-	_, pos, _, _, _ = e.playerMapper.Get(e.EnsurePlayerEntity(1))
+	_, pos, _, _, _, _ = e.playerMapper.Get(e.EnsurePlayerEntity(1))
 	e.mu.Unlock()
 	if pos.X != 1 || pos.Y != 1 {
 		t.Fatalf("diag step 2: want (1,1), got (%d,%d)", pos.X, pos.Y)
@@ -263,21 +261,21 @@ func TestEngine_moveApplyEveryNTicks(t *testing.T) {
 	mv, _ := json.Marshal(gamekit.MoveIntent{DX: 1, DY: 0})
 	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "move", Payload: mv}})
 	e.mu.Lock()
-	_, pos, _, _, _ := e.playerMapper.Get(e.EnsurePlayerEntity(1))
+	_, pos, _, _, _, _ := e.playerMapper.Get(e.EnsurePlayerEntity(1))
 	e.mu.Unlock()
 	if pos.X != 1 || pos.Y != 0 {
 		t.Fatalf("tick 1 with N=2: want (1,0), got (%d,%d)", pos.X, pos.Y)
 	}
 	e.ProcessTick(nil)
 	e.mu.Lock()
-	_, pos, _, _, _ = e.playerMapper.Get(e.EnsurePlayerEntity(1))
+	_, pos, _, _, _, _ = e.playerMapper.Get(e.EnsurePlayerEntity(1))
 	e.mu.Unlock()
 	if pos.X != 1 || pos.Y != 0 {
 		t.Fatalf("tick 2 skip move: want (1,0), got (%d,%d)", pos.X, pos.Y)
 	}
 	e.ProcessTick(nil)
 	e.mu.Lock()
-	_, pos, _, _, _ = e.playerMapper.Get(e.EnsurePlayerEntity(1))
+	_, pos, _, _, _, _ = e.playerMapper.Get(e.EnsurePlayerEntity(1))
 	e.mu.Unlock()
 	if pos.X != 2 || pos.Y != 0 {
 		t.Fatalf("tick 3 apply move: want (2,0), got (%d,%d)", pos.X, pos.Y)

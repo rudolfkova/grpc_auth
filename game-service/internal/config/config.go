@@ -18,6 +18,12 @@ const EnvWorldServiceToken = "WORLD_SERVICE_TOKEN"
 // EnvSaveWorldAdminUserID — user_id из JWT, которому разрешён TypeSaveWorld (пусто = не трогать TOML).
 const EnvSaveWorldAdminUserID = "SAVE_WORLD_ADMIN_USER_ID"
 
+// EnvCharacterServiceAddr — gRPC character-service (host:port).
+const EnvCharacterServiceAddr = "CHARACTER_SERVICE_ADDR"
+
+// EnvCharacterServiceToken — metadata x-service-token для character-service.
+const EnvCharacterServiceToken = "CHARACTER_SERVICE_TOKEN"
+
 // Config contains game-service runtime options.
 type Config struct {
 	BindAddr  string        `toml:"bind_addr"`
@@ -34,6 +40,9 @@ type Config struct {
 	WorldServiceToken string `toml:"world_service_token"`
 	// SaveWorldAdminUserID — только этот user_id может вызывать save_world (по умолчанию 1).
 	SaveWorldAdminUserID int64 `toml:"save_world_admin_user_id"`
+	// CharacterServiceAddr — host:port gRPC character-service; пусто — без Resolve/save персонажа (старое поведение WS).
+	CharacterServiceAddr  string `toml:"character_service_addr"`
+	CharacterServiceToken string `toml:"character_service_token"`
 }
 
 // NewConfig returns defaults for local/dev.
@@ -67,5 +76,11 @@ func ApplyEnvOverrides(cfg *Config) {
 		} else if id, err := strconv.ParseInt(v, 10, 64); err == nil {
 			cfg.SaveWorldAdminUserID = id
 		}
+	}
+	if v, ok := os.LookupEnv(EnvCharacterServiceAddr); ok {
+		cfg.CharacterServiceAddr = v
+	}
+	if v, ok := os.LookupEnv(EnvCharacterServiceToken); ok {
+		cfg.CharacterServiceToken = v
 	}
 }
