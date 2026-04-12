@@ -37,6 +37,11 @@ type PlayerFace struct {
 	DY int `json:"face_dy"`
 }
 
+// PlayerSprite — id набора ходьбы (state.sprite / character.data.sprite); клиент грузит anim/<Name>/...
+type PlayerSprite struct {
+	Name string `json:"name"`
+}
+
 // TileTexture — имя текстуры на клиенте (ассет).
 type TileTexture struct {
 	Name string `json:"name"`

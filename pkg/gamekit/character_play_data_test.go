@@ -14,6 +14,9 @@ func TestParseCharacterPlayData_LegacyWithoutStats(t *testing.T) {
 	if d.Stats.Strength != 10 || d.Stats.Charisma != 10 {
 		t.Fatalf("expected default stats, got %+v", d.Stats)
 	}
+	if d.Sprite != DefaultPlayerSprite {
+		t.Fatalf("expected default sprite %q, got %q", DefaultPlayerSprite, d.Sprite)
+	}
 }
 
 func TestMarshalCharacterPlayData_RoundTrip(t *testing.T) {
@@ -32,5 +35,21 @@ func TestMarshalCharacterPlayData_RoundTrip(t *testing.T) {
 	got.Normalize()
 	if got.Stats.Strength != 16 || got.Stats.Dexterity != 14 {
 		t.Fatalf("stats: %+v", got.Stats)
+	}
+	if got.Sprite != DefaultPlayerSprite {
+		t.Fatalf("sprite: %q", got.Sprite)
+	}
+}
+
+func TestMarshalCharacterPlayData_SpriteRoundTrip(t *testing.T) {
+	d := NewDefaultCharacterPlayData()
+	d.Sprite = "Female 01-2"
+	raw, err := MarshalCharacterPlayData(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := ParseCharacterPlayData(raw)
+	if got.Sprite != "Female 01-2" {
+		t.Fatalf("sprite: %q", got.Sprite)
 	}
 }

@@ -1,6 +1,8 @@
 package gameecs
 
 import (
+	"strings"
+
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	"github.com/mlange-42/ark/ecs"
@@ -8,13 +10,13 @@ import (
 
 // SnapshotSystem строит снимок игроков и тайлов.
 type SnapshotSystem struct {
-	playerFilter *ecs.Filter6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats]
+	playerFilter *ecs.Filter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite]
 	tileFilter   *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
 }
 
 // NewSnapshotSystem создаёт систему снимка.
 func NewSnapshotSystem(
-	playerFilter *ecs.Filter6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats],
+	playerFilter *ecs.Filter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite],
 	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 ) *SnapshotSystem {
 	return &SnapshotSystem{playerFilter: playerFilter, tileFilter: tileFilter}
@@ -26,7 +28,7 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 
 	out := make([]gamekit.Player, 0, 64)
 	for q.Next() {
-		ref, pos, _, hp, face, st := q.Get()
+		ref, pos, _, hp, face, st, sp := q.Get()
 		fdx, fdy := face.DX, face.DY
 		if fdx == 0 && fdy == 0 {
 			fdx, fdy = gamekit.DefaultPlayerFaceDX, gamekit.DefaultPlayerFaceDY
@@ -34,6 +36,10 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 		stats := *st
 		if stats.IsUnset() {
 			stats = gamekit.DefaultCharacterStats()
+		}
+		sprite := strings.TrimSpace(sp.Name)
+		if sprite == "" {
+			sprite = gamekit.DefaultPlayerSprite
 		}
 		out = append(out, gamekit.Player{
 			ID:     ref.UserID,
@@ -43,6 +49,7 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 			FaceDX: fdx,
 			FaceDY: fdy,
 			Stats:  stats,
+			Sprite: sprite,
 		})
 	}
 	ctx.Players = out

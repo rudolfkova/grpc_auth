@@ -3,6 +3,7 @@ package gamekit
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 )
 
 // CharacterDataSchemaVersion — версия JSON в character-service.data (поднимать при несовместимых изменениях).
@@ -33,6 +34,9 @@ func (s CharacterStats) IsUnset() bool {
 		s.Intelligence == 0 && s.Wisdom == 0 && s.Charisma == 0
 }
 
+// DefaultPlayerSprite — имя набора в data/anim/<имя>/<имя>.png на клиенте; в JSON character.data поле sprite.
+const DefaultPlayerSprite = "Male 01-1"
+
 // CharacterPlayData — JSON в character-service.data (opaque bytes) + зеркало для ECS при join/save.
 // Поле schema_version в JSON опционально для обратной совместимости со старыми сохранениями (v1 без stats).
 type CharacterPlayData struct {
@@ -43,6 +47,8 @@ type CharacterPlayData struct {
 	FaceDX        int            `json:"face_dx"`
 	FaceDY        int            `json:"face_dy"`
 	Stats         CharacterStats `json:"stats"`
+	// Sprite — имя папки/листа ходьбы (как в клиенте: anim/<Sprite>/<Sprite>.png), например "Male 01-1", "Female 01-2".
+	Sprite string `json:"sprite,omitempty"`
 }
 
 // NewDefaultCharacterPlayData — шаблон для пустого character.data.
@@ -53,6 +59,7 @@ func NewDefaultCharacterPlayData() CharacterPlayData {
 		FaceDX:        DefaultPlayerFaceDX,
 		FaceDY:        DefaultPlayerFaceDY,
 		Stats:         DefaultCharacterStats(),
+		Sprite:        DefaultPlayerSprite,
 	}
 }
 
@@ -69,6 +76,9 @@ func (d *CharacterPlayData) Normalize() {
 	}
 	if d.SchemaVersion < int(CharacterDataSchemaVersion) {
 		d.SchemaVersion = int(CharacterDataSchemaVersion)
+	}
+	if strings.TrimSpace(d.Sprite) == "" {
+		d.Sprite = DefaultPlayerSprite
 	}
 }
 

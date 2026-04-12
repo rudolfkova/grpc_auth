@@ -20,7 +20,7 @@ type Engine struct {
 
 	byUser map[int64]ecs.Entity
 
-	playerMapper *ecs.Map6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats]
+	playerMapper *ecs.Map7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite]
 	systems      *SystemRegistry
 	moveIntents  MoveIntentStore
 
@@ -39,8 +39,8 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int) (*Engine, error) {
 		movementApplyEveryNTicks = 1
 	}
 	w := ecs.NewWorld()
-	playerMapper := ecs.NewMap6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats](w)
-	playerFilter := ecs.NewFilter6[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats](w)
+	playerMapper := ecs.NewMap7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite](w)
+	playerFilter := ecs.NewFilter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite](w)
 	tileMapper := ecs.NewMap5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	tileFilter := ecs.NewFilter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter)
@@ -104,6 +104,7 @@ func (e *Engine) EnsurePlayerEntity(userID int64) ecs.Entity {
 	}
 
 	st := gamekit.DefaultCharacterStats()
+	spr := gamekit.PlayerSprite{Name: gamekit.DefaultPlayerSprite}
 	ent := e.playerMapper.NewEntity(
 		&gamekit.PlayerRef{UserID: userID},
 		&gamekit.GridPos{X: 0, Y: 0},
@@ -111,6 +112,7 @@ func (e *Engine) EnsurePlayerEntity(userID int64) ecs.Entity {
 		&gamekit.Health{HP: gamekit.DefaultPlayerHP},
 		&gamekit.PlayerFace{DX: gamekit.DefaultPlayerFaceDX, DY: gamekit.DefaultPlayerFaceDY},
 		&st,
+		&spr,
 	)
 	e.byUser[userID] = ent
 	return ent
@@ -133,6 +135,7 @@ func (e *Engine) EnsurePlayerJoin(userID int64, d gamekit.CharacterPlayData) {
 		faceDX, faceDY = gamekit.DefaultPlayerFaceDX, gamekit.DefaultPlayerFaceDY
 	}
 	st := d.Stats
+	spr := gamekit.PlayerSprite{Name: d.Sprite}
 	ent := e.playerMapper.NewEntity(
 		&gamekit.PlayerRef{UserID: userID},
 		&gamekit.GridPos{X: d.X, Y: d.Y},
@@ -140,6 +143,7 @@ func (e *Engine) EnsurePlayerJoin(userID int64, d gamekit.CharacterPlayData) {
 		&gamekit.Health{HP: hp},
 		&gamekit.PlayerFace{DX: faceDX, DY: faceDY},
 		&st,
+		&spr,
 	)
 	e.byUser[userID] = ent
 }
@@ -152,11 +156,12 @@ func (e *Engine) PlayerCharacterData(userID int64) ([]byte, error) {
 	if !ok || !e.playerMapper.HasAll(ent) {
 		return gamekit.MarshalCharacterPlayData(gamekit.NewDefaultCharacterPlayData())
 	}
-	_, pos, _, hp, face, st := e.playerMapper.Get(ent)
+	_, pos, _, hp, face, st, sp := e.playerMapper.Get(ent)
 	cpd := gamekit.CharacterPlayData{
 		X: pos.X, Y: pos.Y,
 		HP: hp.HP, FaceDX: face.DX, FaceDY: face.DY,
-		Stats: *st,
+		Stats:  *st,
+		Sprite: sp.Name,
 	}
 	return gamekit.MarshalCharacterPlayData(cpd)
 }

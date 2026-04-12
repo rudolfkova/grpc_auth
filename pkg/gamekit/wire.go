@@ -89,6 +89,8 @@ type Player struct {
 	FaceDX int            `json:"face_dx"`
 	FaceDY int            `json:"face_dy"`
 	Stats  CharacterStats `json:"stats"`
+	// Sprite — id листа ходьбы (как CharacterPlayData.Sprite); клиент: data/anim/<sprite>/<sprite>.png.
+	Sprite string `json:"sprite"`
 }
 
 // Tile — элемент массива tiles в payload события TypeState.

@@ -32,6 +32,7 @@
 | `face_dx` | `number` | Да | Взгляд {-1,0,1}; пара (0,0) при загрузке заменяется на дефолт (1,0). |
 | `face_dy` | `number` | Да | Взгляд {-1,0,1}. |
 | `stats` | объект | Да | См. §2.2. Если объект отсутствует или «все нули», сервер подставит дефолтные 10 по всем характеристикам. |
+| `sprite` | `string` | Рекомендуется | Id листа ходьбы (как папка в `data/anim/<sprite>/` на клиенте). Пустая строка / отсутствие поля → **`Male 01-1`** (`gamekit.DefaultPlayerSprite`). |
 
 ### 2.2. Объект `stats` (`CharacterStats`)
 
@@ -65,7 +66,8 @@
     "int": 8,
     "wis": 12,
     "cha": 10
-  }
+  },
+  "sprite": "Female 01-2"
 }
 ```
 
@@ -145,8 +147,9 @@
 | `hp` | number | Текущие HP. |
 | `face_dx`, `face_dy` | number | Взгляд. |
 | `stats` | object | Те же ключи `str`…`cha`, что в §2.2. |
+| `sprite` | string | Id листа ходьбы (например `Male 01-1`); всегда в JSON; клиент грузит `data/anim/<sprite>/<sprite>.png`. |
 
-Редактор **не обязан** парсить весь `state`, но для «живого превью» на сцене полезно показывать хотя бы `stats` из последнего `state` выбранного `id`.
+Редактор **не обязан** парсить весь `state`, но для «живого превью» на сцене полезно показывать хотя бы `stats` и **`sprite`** из последнего `state` выбранного `id`.
 
 ---
 
@@ -186,6 +189,8 @@ export interface CharacterPlayDataWire {
   face_dx: number;
   face_dy: number;
   stats: CharacterStatsWire;
+  /** Пустая строка / отсутствие → сервер подставит `Male 01-1`. */
+  sprite?: string;
 }
 
 export function defaultCharacterStats(): CharacterStatsWire {
@@ -201,6 +206,7 @@ export function defaultCharacterPlayData(): CharacterPlayDataWire {
     face_dx: 1,
     face_dy: 0,
     stats: defaultCharacterStats(),
+    sprite: "Male 01-1",
   };
 }
 ```
