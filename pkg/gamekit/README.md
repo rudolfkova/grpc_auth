@@ -4,6 +4,7 @@
 
 - **ECS-компоненты** Ark — те же struct’ы, что регистрирует сервер в `*ecs.World` (игроки, тайлы).
 - **Wire-типы** — JSON для WebSocket: обёртка сообщения, интенты действий, проекции в событии `state`.
+- **`content`** (`pkg/gamekit/content`) — загрузка `catalog.json` и JSON-сценариев `interact`, реестр `op` (`noop`, `debug_log`; игровые `op` регистрирует `game-service`).
 
 Сервер по-прежнему живёт в `game-service`; сюда перенесено только то, что должно быть **общим контрактом**.
 
@@ -85,7 +86,7 @@ import "github.com/rudolfkova/grpc_auth/pkg/gamekit"
 | `gamekit.CharacterStats` | STR/DEX/CON/INT/WIS/CHA — тот же тип в ECS и в JSON `character.data` / `state.players[].stats` |
 | `gamekit.PlayerSprite` | `Name` — id листа ходьбы (`character.data.sprite`, `state.players[].sprite`) |
 | `gamekit.CharacterPlayData` | JSON в `character-service` `data` + парсинг (`ParseCharacterPlayData`); см. `character-service/CHARACTER_EDITOR_CLIENT.md` |
-| `gamekit.TileTexture` | `Name` — строка-идентификатор текстуры у клиента |
+| `gamekit.TileTexture` | `Name` — строка-идентификатор текстуры у клиента; опционально **`InstanceArgs`** (JSON-объект на экземпляре, wire `instance_args`) |
 | `gamekit.TileSolid` | `Blocks` — если `true`, участвует в блокировке клетки для `move` |
 | `gamekit.TileLayer` | `Z` — слой в клетке `(x,y)`; несколько тайлов в одной клетке различаются по `Z` |
 | `gamekit.TileFacing` | `RotationQuarter` — поворот, четверти по часовой стрелке `0..3` |
@@ -146,7 +147,7 @@ payload, _ := json.Marshal(gamekit.MoveIntent{DX: 1, DY: 0})
 { "target_id": 42, "damage": 2 }
 ```
 
-**Спавн тайла (редактор)** — заменяет только тайлы в `(x,y)` на слое `layer` (по умолчанию `0`). `rotation` — четверти по часовой стрелке, по умолчанию `0`; см. `gamekit.NormalizeTileRotationQuarter`.
+**Спавн тайла (редактор)** — заменяет только тайлы в `(x,y)` на слое `layer` (по умолчанию `0`). `rotation` — четверти по часовой стрелке, по умолчанию `0`; см. `gamekit.NormalizeTileRotationQuarter`. Опционально **`instance_args`**: непустой JSON-объект, не длиннее **`MaxTileInstanceArgsJSONBytes`** (64 KiB); пустой `{}` отбрасывается; см. `NormalizeTileInstanceArgsJSON`.
 
 ```json
 { "x": 2, "y": 3, "layer": 0, "rotation": 0, "texture": "wall", "blocks": true }
@@ -204,7 +205,7 @@ if env.Type == gamekit.TypeState {
 ```
 
 - `Players` — `[]gamekit.Player` (`id`, `x`, `y`, `hp`, `face_dx`, `face_dy`, `stats`, `sprite` — всегда в JSON)  
-- `Tiles` — `[]gamekit.Tile` (`x`, `y`, `layer`, `rotation`, `texture`, `blocks`)  
+- `Tiles` — `[]gamekit.Tile` (`x`, `y`, `layer`, `rotation`, `texture`, `blocks`, опционально `instance_args`)  
 - `TickAt` — `time.Time` (JSON с сервера в формате времени Go)
 
 ---

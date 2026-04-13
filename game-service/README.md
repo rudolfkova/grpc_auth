@@ -36,7 +36,7 @@ Game-service не смог за отведённое время установи
 | Поле | Тип | Обязательно | Описание |
 |------|-----|-------------|----------|
 | `service` | string | да | Должно быть `"game"`. Иначе приходит `reject` с `reason: "wrong_service"`. |
-| `type` | string | да | Тип действия (движок не валидирует список на уровне порта; типичные: `move`, `hit`, `spawn_tile`, `clear_tile`, `save_world`). Пустая строка → `reject` с `reason: "missing_type"`. |
+| `type` | string | да | Тип действия (движок не валидирует список на уровне порта; типичные: `move`, `hit`, `spawn_tile`, `clear_tile`, `interact`, `save_world`). Пустая строка → `reject` с `reason: "missing_type"`. |
 | `payload` | JSON (raw) | нет | Произвольный JSON; интерпретация — в доменном слое. |
 
 Примеры:
@@ -68,11 +68,21 @@ Game-service не смог за отведённое время установи
 
 **Тайл (редактор)** — `type: "spawn_tile"`. В клетке `(x,y)` на заданном **слое** `layer` удаляется предыдущий тайл на этом же слое (если был) и создаётся новый: позиция, слой, поворот, текстура, коллизия. Другие слои в той же клетке не трогаются (например, трава на слое `0` и цветок на слое `1`). Поля `layer` и `rotation` можно опустить — по умолчанию `0`. `rotation` — четверти оборота по часовой стрелке (`0`…`3`); любое целое приводится к `0..3`. Проверок прав пока нет.
 
+Опционально **`instance_args`**: JSON-объект (не массив/строка); при неверном типе, **пустом `{}`** или размере **> `gamekit.MaxTileInstanceArgsJSONBytes` (64 KiB)** сервер **отбрасывает** поле и спавнит тайл без него. В **`state.tiles[]`** ключ **`instance_args`** только если объект **непустой**; пустой `{}` в трафик не уходит.
+
 ```json
 {
   "service": "game",
   "type": "spawn_tile",
-  "payload": { "x": 2, "y": 3, "layer": 0, "rotation": 1, "texture": "wall", "blocks": true }
+  "payload": {
+    "x": 2,
+    "y": 3,
+    "layer": 0,
+    "rotation": 1,
+    "texture": "wall",
+    "blocks": true,
+    "instance_args": { "door_x": 5, "door_y": 1 }
+  }
 }
 ```
 
@@ -83,6 +93,20 @@ Game-service не смог за отведённое время установи
   "service": "game",
   "type": "clear_tile",
   "payload": { "x": 2, "y": 3, "layer": 1 }
+}
+```
+
+**Взаимодействие (каталог content)** — `type: "interact"`, обязательно **`item_def_id`**. Работает только если в конфиге задан **`content_catalog_path`** и каталог со ссылками на JSON-сценарии в **`content_scripts_dir`** (см. `pkg/gamekit/content`). Неизвестный `item_def_id` или предмет без `interact` — действие игнорируется.
+
+Опционально **`click_x`**, **`click_y`** (оба целых — иначе клик не используется): резолвится тайл в этой клетке, у которого **`texture` == `item_def_id`** и у предмета в каталоге есть `interact`. **`click_layer`**: в JSON можно явно передать **`0`**; если ключ **отсутствует** или **`null`** — слой с **максимальным** `layer` среди подходящих. С тайла читается **`instance_args`** и мержится в аргументы сценария: **`interact.args` из каталога < `instance_args` тайла < `args` шага** в JSON сценария (каждый следующий перекрывает ключи предыдущего). Если клик задан, но подходящего тайла нет — действие игнорируется.
+
+**Авторам сценариев:** ключи в **`args` шага** полностью перекрывают одноимённые ключи из каталога и с тайла. Координаты и прочие поля, которые должны приходить из **`instance_args`** редактора, **не дублируйте в шаге** фиксированными значениями (иначе снова затрёте merge). Дефолты на случай «тайла без instance_args» держите в **`interact.args`** каталога; в шаге оставляйте только то, что должно всегда переопределять (или пустой **`args`** / `{}`).
+
+```json
+{
+  "service": "game",
+  "type": "interact",
+  "payload": { "item_def_id": "lever_sample", "click_x": 4, "click_y": 2, "click_layer": 0 }
 }
 ```
 
@@ -136,7 +160,7 @@ Game-service не смог за отведённое время установи
 
 Конфиг: `save_world_admin_user_id` в TOML; переопределение через **`SAVE_WORLD_ADMIN_USER_ID`**.
 
-Невалидный `payload` для `move`/`hit`/`spawn_tile`/`clear_tile` движок молча игнорирует (без `reject`); для **`save_world`** ошибки разбора имени отражаются в **`save_world_result`**. Отклонения по протоколу уровня envelope — только перечисленные `reason` в разделе `reject` ниже.
+Невалидный `payload` для `move`/`hit`/`spawn_tile`/`clear_tile`/`interact` движок молча игнорирует (без `reject`); для **`save_world`** ошибки разбора имени отражаются в **`save_world_result`**. Отклонения по протоколу уровня envelope — только перечисленные `reason` в разделе `reject` ниже.
 
 Если внутренняя очередь действий переполнена, действие **не принимается**; клиент получает отдельное сообщение `reject` (см. ниже).
 
@@ -147,7 +171,7 @@ Game-service не смог за отведённое время установи
 - **Broadcast:** события без привязки к одному пользователю уходят всем подключённым клиентам.
 - **Точечно:** если у события задан получатель (по `user_id`), сообщение получают только соединения этого пользователя. Сейчас так уходит **`save_world_result`** (только инициатор сохранения).
 
-Типы событий задаёт движок. Событие **`state`** (broadcast каждый тик): `payload` — **`gamekit.StatePayload`**: **`players`** (массив `gamekit.Player`: `id`, `x`, `y`, `hp`, `face_dx`, `face_dy`, **`stats`**, **`sprite`** — id листа ходьбы, как в `character.data`; клиент: `data/anim/<sprite>/<sprite>.png`), **`tiles`**, **`tick_at`**. Если у любого тайла в клетке `blocks: true`, в клетку нельзя войти действием `move`.
+Типы событий задаёт движок. Событие **`state`** (broadcast каждый тик): `payload` — **`gamekit.StatePayload`**: **`players`** (массив `gamekit.Player`: `id`, `x`, `y`, `hp`, `face_dx`, `face_dy`, **`stats`**, **`sprite`** — id листа ходьбы, как в `character.data`; клиент: `data/anim/<sprite>/<sprite>.png`), **`tiles`** (у элемента опционально **`instance_args`** — JSON-объект с тайла, если задан при `spawn_tile`), **`tick_at`**. Если у любого тайла в клетке `blocks: true`, в клетку нельзя войти действием `move`.
 
 **`face_dx` / `face_dy`:** целые в **{-1, 0, 1}**, совместимы с осями `move` и координатами клетки: **+X** — в сторону увеличения `x` (условно «вправо»), **+Y** — увеличения `y` (условно «вниз»). Обновляются при **успешном** шаге по сетке (в т.ч. полушаг лесенки при диагонали); при блоке стеной не меняются. При **первом спавне** игрока — **`(1, 0)`**. Ключи **всегда** присутствуют в JSON. Если в сохранённом мире в ECS было `(0, 0)`, в `state` отдаётся **`gamekit.DefaultPlayerFaceDX` / `DY`** (те же 1, 0).
 
@@ -194,7 +218,7 @@ Game-service не смог за отведённое время установи
 | Прикладной сервис | `internal/app/game` | Тикер, очередь действий, маршаллинг в `Envelope` |
 | Адаптер WS | `internal/ports/ws/game` | HTTP/WebSocket |
 | Инфраструктура ECS | `internal/infrastructure/gameecs` | Ark `World`, `Engine`, системы, `SystemRegistry` |
-| Сборка | `cmd/game-service` | `worldclient.GetWorld` (если задан `world_id`) → `gameecs.NewEngine(snapshot, movement_apply_every_n_ticks)` → `app.NewService(engine, ...)` |
+| Сборка | `cmd/game-service` | `worldclient.GetWorld` (если задан `world_id`) → `gameecs.NewEngine(snapshot, movement_apply_every_n_ticks, EngineOptions{…})` → `app.NewService(engine, …)` |
 
 ## Движок: ECS (Ark)
 
@@ -234,7 +258,7 @@ Game-service не смог за отведённое время установи
 go build -o /tmp/game-service ./cmd/game-service
 ```
 
-Конфиг и порт — `cmd/game-service`, `internal/config`, `deploy/docker/config-game.toml`. **`tick_rate`** — интервал тика симуляции и частота `state`. **`movement_apply_every_n_ticks`** — как часто именно **движение по интенту** совершает шаг (меньше нагрузка на «скорость бега» без замедления остального тика).
+Конфиг и порт — `cmd/game-service`, `internal/config`, `deploy/docker/config-game.toml`. **`tick_rate`** — интервал тика симуляции и частота `state`. **`movement_apply_every_n_ticks`** — как часто именно **движение по интенту** совершает шаг (меньше нагрузка на «скорость бега» без замедления остального тика). Каталог предметов и сценарии **`interact`**: **`content_catalog_path`**, **`content_scripts_dir`** (env **`CONTENT_CATALOG_PATH`**, **`CONTENT_SCRIPTS_DIR`**); в Docker по умолчанию монтируется `./game-service/data` в `/app/data` (см. `game-service/data/content/`).
 
 **Лобби / мир:** поле `world_id` в TOML или переменная окружения **`WORLD_ID`**. Если в окружении процесса переменная **`WORLD_ID` задана** (в т.ч. пустая строка), она **перекрывает** значение из файла — так удобнее прокидывать id из Docker/Kubernetes на инстанс. В `docker-compose` для `game-service` объявлен проброс `WORLD_ID` с хоста (`environment: - WORLD_ID`). Пример: `WORLD_ID=my-lobby-world docker compose up -d game-service`.
 

@@ -2,16 +2,18 @@ package gameecs
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"game/internal/domain/models"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit/content"
 
 	arkserde "github.com/mlange-42/ark-serde"
 )
 
 func TestEngine_MoveAndHit(t *testing.T) {
-	e, err := NewEngine(nil, 1)
+	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +42,7 @@ func TestEngine_MoveAndHit(t *testing.T) {
 }
 
 func TestEngine_spawnTileAppearsInState(t *testing.T) {
-	e, err := NewEngine(nil, 1)
+	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,8 +69,46 @@ func TestEngine_spawnTileAppearsInState(t *testing.T) {
 	}
 }
 
+func TestEngine_spawnTileInstanceArgsInState(t *testing.T) {
+	e, err := NewEngine(nil, 1, EngineOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, _ := json.Marshal(map[string]any{"door_x": 9, "door_y": 2})
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
+		X: 5, Y: 6, Layer: 0, Texture: "lever_x", Blocks: false,
+		InstanceArgs: inst,
+	})
+	evs := e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	if len(evs) != 1 || evs[0].Type != "state" {
+		t.Fatalf("events: %+v", evs)
+	}
+	body, _ := json.Marshal(evs[0].Payload)
+	var st gamekit.StatePayload
+	if err := json.Unmarshal(body, &st); err != nil {
+		t.Fatal(err)
+	}
+	var got *gamekit.Tile
+	for i := range st.Tiles {
+		if st.Tiles[i].X == 5 && st.Tiles[i].Y == 6 && st.Tiles[i].Texture == "lever_x" {
+			got = &st.Tiles[i]
+			break
+		}
+	}
+	if got == nil {
+		t.Fatalf("no tile: %+v", st.Tiles)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(got.InstanceArgs, &m); err != nil {
+		t.Fatal(err)
+	}
+	if int(m["door_x"].(float64)) != 9 || int(m["door_y"].(float64)) != 2 {
+		t.Fatalf("instance_args: %#v", m)
+	}
+}
+
 func TestEngine_spawnTileLayersAndClearTile(t *testing.T) {
-	e, err := NewEngine(nil, 1)
+	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +139,7 @@ func TestEngine_spawnTileLayersAndClearTile(t *testing.T) {
 }
 
 func TestEngine_spawnTileRotationNormalized(t *testing.T) {
-	e, err := NewEngine(nil, 1)
+	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +156,7 @@ func TestEngine_spawnTileRotationNormalized(t *testing.T) {
 }
 
 func TestEngine_manyMoveMessagesOneCellPerTick(t *testing.T) {
-	e, err := NewEngine(nil, 1)
+	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +176,7 @@ func TestEngine_manyMoveMessagesOneCellPerTick(t *testing.T) {
 }
 
 func TestEngine_moveIntentPersistsAcrossTicks(t *testing.T) {
-	e, err := NewEngine(nil, 1)
+	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +193,7 @@ func TestEngine_moveIntentPersistsAcrossTicks(t *testing.T) {
 }
 
 func TestEngine_moveBlockedBySolidTile(t *testing.T) {
-	e, err := NewEngine(nil, 1)
+	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +217,7 @@ func TestEngine_moveBlockedBySolidTile(t *testing.T) {
 }
 
 func TestNewEngine_fromArkSerdeSnapshot(t *testing.T) {
-	src, err := NewEngine(nil, 1)
+	src, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +234,7 @@ func TestNewEngine_fromArkSerdeSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e, err := NewEngine(snap, 1)
+	e, err := NewEngine(snap, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +248,7 @@ func TestNewEngine_fromArkSerdeSnapshot(t *testing.T) {
 }
 
 func TestEngine_stateIncludesFacing(t *testing.T) {
-	e, err := NewEngine(nil, 1)
+	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +272,7 @@ func TestEngine_stateIncludesFacing(t *testing.T) {
 }
 
 func TestEngine_diagonalIntentStaircase(t *testing.T) {
-	e, err := NewEngine(nil, 1)
+	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +294,7 @@ func TestEngine_diagonalIntentStaircase(t *testing.T) {
 }
 
 func TestEngine_moveApplyEveryNTicks(t *testing.T) {
-	e, err := NewEngine(nil, 2)
+	e, err := NewEngine(nil, 2, EngineOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,5 +319,74 @@ func TestEngine_moveApplyEveryNTicks(t *testing.T) {
 	e.mu.Unlock()
 	if pos.X != 2 || pos.Y != 0 {
 		t.Fatalf("tick 3 apply move: want (2,0), got (%d,%d)", pos.X, pos.Y)
+	}
+}
+
+func TestEngine_InteractWorldSpawnTile(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pl, _ := json.Marshal(gamekit.InteractIntent{ItemDefID: "test_lever"})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: pl}})
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	q := e.tileFilter.Query()
+	defer q.Close()
+	found := false
+	for q.Next() {
+		pos, _, _, tex, _ := q.Get()
+		if pos.X == 2 && pos.Y == 3 && tex.Name == "stone" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected stone tile at (2,3)")
+	}
+}
+
+func TestEngine_InteractClickUsesTileInstanceArgs(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, _ := json.Marshal(map[string]any{
+		"x": 9, "y": 8, "layer": 0, "rotation": 0, "texture": "grass", "blocks": false,
+	})
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
+		X: 5, Y: 5, Layer: 0, Texture: "test_lever", Blocks: false,
+		InstanceArgs: inst,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	cx, cy := 5, 5
+	pl, _ := json.Marshal(gamekit.InteractIntent{ItemDefID: "test_lever", ClickX: &cx, ClickY: &cy})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: pl}})
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	q := e.tileFilter.Query()
+	defer q.Close()
+	found := false
+	for q.Next() {
+		pos, _, _, tex, _ := q.Get()
+		if pos.X == 9 && pos.Y == 8 && tex.Name == "grass" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected grass tile at (9,8) from merged instance_args")
 	}
 }

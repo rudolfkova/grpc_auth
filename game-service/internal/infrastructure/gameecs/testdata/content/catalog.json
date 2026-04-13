@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "items": {
+    "test_lever": {
+      "id": "test_lever",
+      "name": "Test lever",
+      "pickable": false,
+      "interact": {
+        "script": "test_lever.json",
+        "args": {
+          "x": 2,
+          "y": 3,
+          "layer": 0,
+          "rotation": 0,
+          "texture": "stone",
+          "blocks": true
+        }
+      }
+    }
+  }
+}

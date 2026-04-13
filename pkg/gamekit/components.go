@@ -1,6 +1,8 @@
 // Package gamekit — общие ECS-компоненты и контракт WebSocket game-service (сервер + клиент на Go/Ark).
 package gamekit
 
+import "encoding/json"
+
 // PlayerRef связывает сущность с user_id из JWT / транспорта.
 type PlayerRef struct {
 	UserID int64
@@ -43,8 +45,11 @@ type PlayerSprite struct {
 }
 
 // TileTexture — имя текстуры на клиенте (ассет).
+// InstanceArgs — опциональный JSON-объект на экземпляре тайла (мержится в interact; wire: instance_args).
+// Договорённость с клиентом: texture == item_def_id из каталога для резолва клика по клетке.
 type TileTexture struct {
-	Name string `json:"name"`
+	Name          string          `json:"name"`
+	InstanceArgs  json.RawMessage `json:"instance_args,omitempty"`
 }
 
 // TileSolid — Blocks=true: в клетку нельзя войти (сервер проверяет при move).

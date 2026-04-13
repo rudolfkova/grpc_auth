@@ -24,6 +24,12 @@ const EnvCharacterServiceAddr = "CHARACTER_SERVICE_ADDR"
 // EnvCharacterServiceToken — metadata x-service-token для character-service.
 const EnvCharacterServiceToken = "CHARACTER_SERVICE_TOKEN"
 
+// EnvContentCatalogPath — путь к catalog.json (pkg/gamekit/content); пусто — без interact.
+const EnvContentCatalogPath = "CONTENT_CATALOG_PATH"
+
+// EnvContentScriptsDir — каталог JSON-сценариев взаимодействий; может быть пустым если в каталоге нет interact.
+const EnvContentScriptsDir = "CONTENT_SCRIPTS_DIR"
+
 // Config contains game-service runtime options.
 type Config struct {
 	BindAddr  string        `toml:"bind_addr"`
@@ -32,7 +38,7 @@ type Config struct {
 	QueueSize int           `toml:"queue_size"`
 	// MovementApplyEveryNTicks — применять смещение по move-интенту не чаще чем раз в N тиков (1 = каждый тик). Не трогает частоту state/hit.
 	MovementApplyEveryNTicks int    `toml:"movement_apply_every_n_ticks"`
-	JWTSecret                  string `toml:"jwt_secret"`
+	JWTSecret                string `toml:"jwt_secret"`
 	// WorldID — id мира в world-service; из TOML или из EnvWorldID, если переменная задана.
 	WorldID string `toml:"world_id"`
 	// WorldServiceAddr — host:port gRPC world-service (нужен, если WorldID непустой).
@@ -43,6 +49,10 @@ type Config struct {
 	// CharacterServiceAddr — host:port gRPC character-service; пусто — без Resolve/save персонажа (старое поведение WS).
 	CharacterServiceAddr  string `toml:"character_service_addr"`
 	CharacterServiceToken string `toml:"character_service_token"`
+	// ContentCatalogPath — catalog.json; пусто — TypeInteract игнорируется.
+	ContentCatalogPath string `toml:"content_catalog_path"`
+	// ContentScriptsDir — каталог со сценариями (*.json); пусто допустимо если нет interact.script.
+	ContentScriptsDir string `toml:"content_scripts_dir"`
 }
 
 // NewConfig returns defaults for local/dev.
@@ -82,5 +92,11 @@ func ApplyEnvOverrides(cfg *Config) {
 	}
 	if v, ok := os.LookupEnv(EnvCharacterServiceToken); ok {
 		cfg.CharacterServiceToken = v
+	}
+	if v, ok := os.LookupEnv(EnvContentCatalogPath); ok {
+		cfg.ContentCatalogPath = v
+	}
+	if v, ok := os.LookupEnv(EnvContentScriptsDir); ok {
+		cfg.ContentScriptsDir = v
 	}
 }

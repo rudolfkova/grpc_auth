@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "items": {
+    "demo_item": {
+      "id": "demo_item",
+      "name": "Demo",
+      "pickable": false,
+      "interact": {
+        "script": "demo.json",
+        "args": { "message": "from base" }
+      }
+    }
+  }
+}

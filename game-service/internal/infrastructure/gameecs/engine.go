@@ -1,6 +1,7 @@
 package gameecs
 
 import (
+	"log/slog"
 	"sync"
 	"time"
 
@@ -8,10 +9,17 @@ import (
 	"game/internal/domain/models"
 	"game/internal/domain/ports"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit/content"
 
 	arkserde "github.com/mlange-42/ark-serde"
 	"github.com/mlange-42/ark/ecs"
 )
+
+// EngineOptions опции NewEngine (нулевое значение — только ECS, без каталога content).
+type EngineOptions struct {
+	Content *content.Bundle
+	Logger  *slog.Logger
+}
 
 // Engine — адаптер доменного порта GameEngine на Ark ECS.
 type Engine struct {
@@ -21,6 +29,8 @@ type Engine struct {
 	byUser map[int64]ecs.Entity
 
 	playerMapper *ecs.Map7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite]
+	tileMapper   *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
+	tileFilter   *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
 	systems      *SystemRegistry
 	moveIntents  MoveIntentStore
 
@@ -34,7 +44,7 @@ var _ ports.GameEngine = (*Engine)(nil)
 // NewEngine создаёт движок с миром Ark и зарегистрированными системами.
 // snapshot — JSON от ark-serde (github.com/mlange-42/ark-serde, Serialize); пустой слайс = пустой мир.
 // movementApplyEveryNTicks — применять шаг движения не чаще чем раз в N тиков симуляции; <1 трактуется как 1.
-func NewEngine(snapshot []byte, movementApplyEveryNTicks int) (*Engine, error) {
+func NewEngine(snapshot []byte, movementApplyEveryNTicks int, opts EngineOptions) (*Engine, error) {
 	if movementApplyEveryNTicks < 1 {
 		movementApplyEveryNTicks = 1
 	}
@@ -43,16 +53,21 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int) (*Engine, error) {
 	playerFilter := ecs.NewFilter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite](w)
 	tileMapper := ecs.NewMap5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	tileFilter := ecs.NewFilter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
-	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter)
 	e := &Engine{
 		world:          w,
 		byUser:         make(map[int64]ecs.Entity),
 		playerMapper:   playerMapper,
-		systems:        reg,
+		tileMapper:     tileMapper,
+		tileFilter:     tileFilter,
 		moveApplyEvery: movementApplyEveryNTicks,
 	}
+	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter, opts.Content, opts.Logger, e)
+	e.systems = reg
 	if err := e.applyArkWorldSnapshot(snapshot); err != nil {
 		return nil, err
+	}
+	if opts.Content != nil {
+		registerGameContentOps(opts.Content.Runner, e)
 	}
 	return e, nil
 }

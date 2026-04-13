@@ -195,6 +195,9 @@ services:
     container_name: grpc-game-service
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    env_file:
+      - path: .env
+        required: false
     environment:
       # Обход битого bridge/DNS между контейнерами: world проброшен на хост :50054 → заходим с хоста.
       # Рабочая сеть docker: переопредели WORLD_SERVICE_ADDR=world-service:50054
@@ -210,6 +213,7 @@ services:
         condition: service_healthy
     volumes:
       - ./deploy/docker/config-game.toml:/configs/config-game.toml:ro
+      - ./game-service/data:/app/data:ro
     ports:
       - "50053:50053"
 

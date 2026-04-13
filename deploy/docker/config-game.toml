@@ -16,3 +16,6 @@ save_world_admin_user_id = 1
 # character-service gRPC (пусто — без character_id на WS). Локально: localhost:50055. В compose: CHARACTER_SERVICE_ADDR=character-service:50055.
 character_service_addr = ""
 character_service_token = ""
+# Каталог предметов и сценарии interact (pkg/gamekit/content). Пусто — без interact.
+content_catalog_path = "/app/data/content/catalog.json"
+content_scripts_dir = "/app/data/content/scripts"

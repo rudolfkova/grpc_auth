@@ -34,30 +34,7 @@ func (s *TileSpawnSystem) Update(ctx *TickContext) {
 	if err := json.Unmarshal(a.Payload, &in); err != nil {
 		return
 	}
+	in.InstanceArgs = gamekit.NormalizeTileInstanceArgsJSON(in.InstanceArgs)
 
-	rot := gamekit.NormalizeTileRotationQuarter(in.Rotation)
-	s.removeTilesAtLayer(in.X, in.Y, in.Layer)
-	s.tiles.NewEntity(
-		&gamekit.GridPos{X: in.X, Y: in.Y},
-		&gamekit.TileLayer{Z: in.Layer},
-		&gamekit.TileFacing{RotationQuarter: rot},
-		&gamekit.TileTexture{Name: in.Texture},
-		&gamekit.TileSolid{Blocks: in.Blocks},
-	)
-}
-
-func (s *TileSpawnSystem) removeTilesAtLayer(x, y, layer int) {
-	q := s.filter.Query()
-	defer q.Close()
-
-	var rm []ecs.Entity
-	for q.Next() {
-		pos, lay, _, _, _ := q.Get()
-		if pos.X == x && pos.Y == y && lay.Z == layer {
-			rm = append(rm, q.Entity())
-		}
-	}
-	for _, e := range rm {
-		s.world.RemoveEntity(e)
-	}
+	spawnTileAt(s.world, s.tiles, s.filter, in)
 }

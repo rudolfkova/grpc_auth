@@ -1,8 +1,11 @@
 package gameecs
 
 import (
+	"log/slog"
+
 	"game/internal/domain/models"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit/content"
 
 	"github.com/mlange-42/ark/ecs"
 )
@@ -20,6 +23,9 @@ func NewSystemRegistry(
 	playerFilter *ecs.Filter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite],
 	tileMapper *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
+	contentBundle *content.Bundle,
+	interactLog *slog.Logger,
+	engine *Engine,
 ) *SystemRegistry {
 	return &SystemRegistry{
 		perAction: []System{
@@ -27,6 +33,7 @@ func NewSystemRegistry(
 			NewDamageSystem(playerMapper),
 			NewTileSpawnSystem(w, tileMapper, tileFilter),
 			NewTileClearSystem(w, tileFilter),
+			NewInteractSystem(contentBundle, interactLog, engine),
 		},
 		postTick: []System{
 			NewMovementApplySystem(playerMapper, playerFilter, tileFilter),

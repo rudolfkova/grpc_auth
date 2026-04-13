@@ -22,6 +22,7 @@ RUN adduser -D -u 10001 appuser
 WORKDIR /app
 
 COPY --from=builder /out/game-service /app/game-service
+COPY game-service/data /app/data
 
 USER appuser
 EXPOSE 50053

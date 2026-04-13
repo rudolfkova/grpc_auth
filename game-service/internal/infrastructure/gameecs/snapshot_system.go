@@ -59,14 +59,18 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 	tiles := make([]gamekit.Tile, 0, 64)
 	for tq.Next() {
 		pos, lay, face, tex, sol := tq.Get()
-		tiles = append(tiles, gamekit.Tile{
+		t := gamekit.Tile{
 			X:        pos.X,
 			Y:        pos.Y,
 			Layer:    lay.Z,
 			Rotation: face.RotationQuarter,
 			Texture:  tex.Name,
 			Blocks:   sol.Blocks,
-		})
+		}
+		if len(tex.InstanceArgs) > 0 {
+			t.InstanceArgs = tex.InstanceArgs
+		}
+		tiles = append(tiles, t)
 	}
 	ctx.Tiles = tiles
 }

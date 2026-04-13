@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	gamews "game/internal/ports/ws/game"
 
 	"github.com/BurntSushi/toml"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit/content"
 )
 
 var configPath string
@@ -77,7 +79,18 @@ func main() {
 	if moveEvery < 1 {
 		moveEvery = 1
 	}
-	engine, err := gameecs.NewEngine(snapshot, moveEvery)
+	var contentBundle *content.Bundle
+	if cat := strings.TrimSpace(cfg.ContentCatalogPath); cat != "" {
+		b, err := content.LoadBundle(cat, strings.TrimSpace(cfg.ContentScriptsDir))
+		if err != nil {
+			log.Fatalf("content bundle: %v", err)
+		}
+		contentBundle = b
+	}
+	engine, err := gameecs.NewEngine(snapshot, moveEvery, gameecs.EngineOptions{
+		Content: contentBundle,
+		Logger:  logger,
+	})
 	if err != nil {
 		log.Fatalf("engine: %v", err)
 	}

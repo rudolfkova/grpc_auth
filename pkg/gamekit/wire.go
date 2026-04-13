@@ -14,6 +14,7 @@ const (
 	TypeSpawnTile = "spawn_tile"
 	TypeClearTile = "clear_tile"
 	TypeSaveWorld = "save_world"
+	TypeInteract  = "interact"
 	TypeState     = "state"
 	TypeReject    = "reject"
 	TypeError     = "error"
@@ -48,12 +49,14 @@ type HitIntent struct {
 // TileSpawnIntent — payload для TypeSpawnTile.
 // Layer по умолчанию 0; Rotation — четверти оборота по часовой стрелке (любое целое нормализуется к 0..3).
 type TileSpawnIntent struct {
-	X        int    `json:"x"`
-	Y        int    `json:"y"`
-	Layer    int    `json:"layer"`
-	Rotation int    `json:"rotation"`
-	Texture  string `json:"texture"`
-	Blocks   bool   `json:"blocks"`
+	X        int             `json:"x"`
+	Y        int             `json:"y"`
+	Layer    int             `json:"layer"`
+	Rotation int             `json:"rotation"`
+	Texture  string          `json:"texture"`
+	Blocks   bool            `json:"blocks"`
+	// InstanceArgs опционально: только JSON-объект; null/не объект при spawn отбрасываются (см. нормализацию на сервере).
+	InstanceArgs json.RawMessage `json:"instance_args,omitempty"`
 }
 
 // TileClearIntent — payload для TypeClearTile: удалить все тайлы в клетке (x,y) на указанном слое.
@@ -61,6 +64,17 @@ type TileClearIntent struct {
 	X     int `json:"x"`
 	Y     int `json:"y"`
 	Layer int `json:"layer"`
+}
+
+// InteractIntent — payload для TypeInteract: запуск сценария каталога для item_def_id.
+// Резолв по клетке (опционально): при обоих click_x и click_y ищется тайл с texture == item_def_id
+// и interact в каталоге; при отсутствии click_layer — слой с максимальным layer среди подходящих.
+// ClickLayer без omitempty: явный слой 0 сериализуется из Go как "click_layer":0; при nil в json.Marshal будет null (клиенту WS удобнее опускать ключ в JSON вручную).
+type InteractIntent struct {
+	ItemDefID  string `json:"item_def_id"`
+	ClickX     *int   `json:"click_x,omitempty"`
+	ClickY     *int   `json:"click_y,omitempty"`
+	ClickLayer *int   `json:"click_layer"`
 }
 
 // SaveWorldIntent — payload для TypeSaveWorld (только разрешённый admin user_id на сервере).
@@ -95,12 +109,13 @@ type Player struct {
 
 // Tile — элемент массива tiles в payload события TypeState.
 type Tile struct {
-	X        int    `json:"x"`
-	Y        int    `json:"y"`
-	Layer    int    `json:"layer"`
-	Rotation int    `json:"rotation"`
-	Texture  string `json:"texture"`
-	Blocks   bool   `json:"blocks"`
+	X        int             `json:"x"`
+	Y        int             `json:"y"`
+	Layer    int             `json:"layer"`
+	Rotation int             `json:"rotation"`
+	Texture  string          `json:"texture"`
+	Blocks   bool            `json:"blocks"`
+	InstanceArgs json.RawMessage `json:"instance_args,omitempty"`
 }
 
 // StatePayload — полный JSON payload у TypeState (сервер шлёт это же из gamekit; клиент Unmarshal сюда).

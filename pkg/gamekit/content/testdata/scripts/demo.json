@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "steps": [
+    { "op": "noop" },
+    { "op": "debug_log", "args": { "message": "step" } }
+  ]
+}
