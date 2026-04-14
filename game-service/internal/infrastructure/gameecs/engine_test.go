@@ -57,15 +57,17 @@ func TestEngine_spawnTileAppearsInState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var st struct {
-		Tiles []gamekit.Tile `json:"tiles"`
-	}
+	var st gamekit.StatePayload
 	if err := json.Unmarshal(body, &st); err != nil {
 		t.Fatal(err)
 	}
-	if len(st.Tiles) != 1 || st.Tiles[0].X != 3 || st.Tiles[0].Y != 4 || st.Tiles[0].Layer != 0 || st.Tiles[0].Rotation != 0 ||
-		st.Tiles[0].Texture != "wall" || !st.Tiles[0].Blocks {
-		t.Fatalf("tiles: %+v", st.Tiles)
+	if st.Tiles == nil || len(*st.Tiles) != 1 {
+		t.Fatalf("want full tiles snapshot, got %+v", st)
+	}
+	t0 := (*st.Tiles)[0]
+	if t0.X != 3 || t0.Y != 4 || t0.Layer != 0 || t0.Rotation != 0 ||
+		t0.Texture != "wall" || !t0.Blocks {
+		t.Fatalf("tiles: %+v", t0)
 	}
 }
 
@@ -88,10 +90,14 @@ func TestEngine_spawnTileInstanceArgsInState(t *testing.T) {
 	if err := json.Unmarshal(body, &st); err != nil {
 		t.Fatal(err)
 	}
+	if st.Tiles == nil {
+		t.Fatalf("want full tiles, got %+v", st)
+	}
 	var got *gamekit.Tile
-	for i := range st.Tiles {
-		if st.Tiles[i].X == 5 && st.Tiles[i].Y == 6 && st.Tiles[i].Texture == "lever_x" {
-			got = &st.Tiles[i]
+	for i := range *st.Tiles {
+		ti := &(*st.Tiles)[i]
+		if ti.X == 5 && ti.Y == 6 && ti.Texture == "lever_x" {
+			got = ti
 			break
 		}
 	}
@@ -127,14 +133,34 @@ func TestEngine_spawnTileLayersAndClearTile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var st struct {
-		Tiles []gamekit.Tile `json:"tiles"`
-	}
+	var st gamekit.StatePayload
 	if err := json.Unmarshal(body, &st); err != nil {
 		t.Fatal(err)
 	}
-	if len(st.Tiles) != 1 || st.Tiles[0].Layer != 0 || st.Tiles[0].Texture != "grass" {
-		t.Fatalf("after clear layer 1: %+v", st.Tiles)
+	if st.Tiles != nil {
+		t.Fatalf("delta tick should omit tiles, got %+v", st.Tiles)
+	}
+	if len(st.TileUpdates) != 1 || st.TileUpdates[0].Op != gamekit.StateTileUpdateRemove ||
+		st.TileUpdates[0].X != 1 || st.TileUpdates[0].Y != 1 || st.TileUpdates[0].Layer != 1 {
+		t.Fatalf("tile_updates: %+v", st.TileUpdates)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var seen []string
+	q := e.tileFilter.Query()
+	defer q.Close()
+	for q.Next() {
+		pos, lay, _, tex, _ := q.Get()
+		seen = append(seen, tex.Name)
+		if pos.X == 1 && pos.Y == 1 && lay.Z == 0 && tex.Name != "grass" {
+			t.Fatalf("layer 0: want grass at (1,1), got %s", tex.Name)
+		}
+		if pos.X == 1 && pos.Y == 1 && lay.Z == 1 {
+			t.Fatalf("layer 1 should be empty, still have tile %s", tex.Name)
+		}
+	}
+	if len(seen) != 1 {
+		t.Fatalf("expected one tile in world, got %v", seen)
 	}
 }
 
@@ -146,11 +172,9 @@ func TestEngine_spawnTileRotationNormalized(t *testing.T) {
 	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 0, Y: 0, Layer: 0, Rotation: 5, Texture: "arrow", Blocks: false})
 	evs := e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
 	body, _ := json.Marshal(evs[0].Payload)
-	var st struct {
-		Tiles []gamekit.Tile `json:"tiles"`
-	}
+	var st gamekit.StatePayload
 	_ = json.Unmarshal(body, &st)
-	if len(st.Tiles) != 1 || st.Tiles[0].Rotation != 1 {
+	if st.Tiles == nil || len(*st.Tiles) != 1 || (*st.Tiles)[0].Rotation != 1 {
 		t.Fatalf("rotation want 1, got %+v", st.Tiles)
 	}
 }
@@ -388,5 +412,59 @@ func TestEngine_InteractClickUsesTileInstanceArgs(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected grass tile at (9,8) from merged instance_args")
+	}
+}
+
+func TestEngine_quietSecondTickOmitsTileKeysInJSON(t *testing.T) {
+	e, err := NewEngine(nil, 1, EngineOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.ProcessTick(nil)
+	evs := e.ProcessTick(nil)
+	if len(evs) != 1 {
+		t.Fatalf("events: %+v", evs)
+	}
+	body, err := json.Marshal(evs[0].Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := raw["tiles"]; ok {
+		t.Fatalf("expected no tiles key on quiet delta tick, got keys: %v", raw)
+	}
+	if _, ok := raw["tile_updates"]; ok {
+		t.Fatalf("expected no tile_updates key, got keys: %v", raw)
+	}
+}
+
+func TestEngine_spawnAfterFullSyncUsesTileUpdates(t *testing.T) {
+	e, err := NewEngine(nil, 1, EngineOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.ProcessTick(nil)
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 0, Y: 0, Texture: "grass", Blocks: false})
+	evs := e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	if len(evs) != 1 {
+		t.Fatalf("events: %+v", evs)
+	}
+	body, err := json.Marshal(evs[0].Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st gamekit.StatePayload
+	if err := json.Unmarshal(body, &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tiles != nil {
+		t.Fatalf("expected delta tick without full tiles, got %+v", st)
+	}
+	if len(st.TileUpdates) != 1 || st.TileUpdates[0].Op != gamekit.StateTileUpdateUpsert ||
+		st.TileUpdates[0].Tile == nil || st.TileUpdates[0].Tile.Texture != "grass" {
+		t.Fatalf("tile_updates: %+v", st.TileUpdates)
 	}
 }

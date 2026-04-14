@@ -13,6 +13,7 @@ type TileSpawnSystem struct {
 	world  *ecs.World
 	tiles  *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
 	filter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
+	engine *Engine
 }
 
 // NewTileSpawnSystem ...
@@ -20,8 +21,9 @@ func NewTileSpawnSystem(
 	w *ecs.World,
 	tiles *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 	filter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
+	engine *Engine,
 ) *TileSpawnSystem {
-	return &TileSpawnSystem{world: w, tiles: tiles, filter: filter}
+	return &TileSpawnSystem{world: w, tiles: tiles, filter: filter, engine: engine}
 }
 
 func (s *TileSpawnSystem) Update(ctx *TickContext) {
@@ -36,5 +38,5 @@ func (s *TileSpawnSystem) Update(ctx *TickContext) {
 	}
 	in.InstanceArgs = gamekit.NormalizeTileInstanceArgsJSON(in.InstanceArgs)
 
-	spawnTileAt(s.world, s.tiles, s.filter, in)
+	spawnTileAt(s.world, s.tiles, s.filter, in, s.engine)
 }

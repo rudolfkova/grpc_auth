@@ -19,7 +19,7 @@ func registerGameContentOps(r *content.Runner, e *Engine) {
 		if err != nil {
 			return err
 		}
-		spawnTileAt(host.world, host.tileMapper, host.tileFilter, in)
+		spawnTileAt(host.world, host.tileMapper, host.tileFilter, in, host)
 		return nil
 	})
 }

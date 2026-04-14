@@ -3,3 +3,5 @@ log_level = "DEBUG"
 tick_rate = "50ms"
 queue_size = 1024
 jwt_secret = "123"
+# Полный список тайлов в state раз в интервал; между ними — только tile_updates. Env: TILE_FULL_SYNC_INTERVAL (time.ParseDuration).
+tile_full_sync_interval = "1s"

@@ -53,7 +53,12 @@ type Config struct {
 	ContentCatalogPath string `toml:"content_catalog_path"`
 	// ContentScriptsDir — каталог со сценариями (*.json); пусто допустимо если нет interact.script.
 	ContentScriptsDir string `toml:"content_scripts_dir"`
+	// TileFullSyncInterval — период полного списка тайлов в state; между полными снимками — только tile_updates.
+	TileFullSyncInterval time.Duration `toml:"tile_full_sync_interval"`
 }
+
+// EnvTileFullSyncInterval — duration string (time.ParseDuration), перекрывает TOML.
+const EnvTileFullSyncInterval = "TILE_FULL_SYNC_INTERVAL"
 
 // NewConfig returns defaults for local/dev.
 func NewConfig() *Config {
@@ -65,6 +70,7 @@ func NewConfig() *Config {
 		MovementApplyEveryNTicks: 1,
 		JWTSecret:                "123",
 		SaveWorldAdminUserID:     1,
+		TileFullSyncInterval:     time.Second,
 	}
 }
 
@@ -98,5 +104,10 @@ func ApplyEnvOverrides(cfg *Config) {
 	}
 	if v, ok := os.LookupEnv(EnvContentScriptsDir); ok {
 		cfg.ContentScriptsDir = v
+	}
+	if v, ok := os.LookupEnv(EnvTileFullSyncInterval); ok && v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			cfg.TileFullSyncInterval = d
+		}
 	}
 }

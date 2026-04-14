@@ -31,8 +31,8 @@ func NewSystemRegistry(
 		perAction: []System{
 			NewMoveIntentCaptureSystem(playerMapper),
 			NewDamageSystem(playerMapper),
-			NewTileSpawnSystem(w, tileMapper, tileFilter),
-			NewTileClearSystem(w, tileFilter),
+			NewTileSpawnSystem(w, tileMapper, tileFilter, engine),
+			NewTileClearSystem(w, tileFilter, engine),
 			NewInteractSystem(contentBundle, interactLog, engine),
 		},
 		postTick: []System{

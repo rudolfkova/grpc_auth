@@ -87,9 +87,14 @@ func main() {
 		}
 		contentBundle = b
 	}
+	tileFullEvery := cfg.TileFullSyncInterval
+	if tileFullEvery <= 0 {
+		tileFullEvery = time.Second
+	}
 	engine, err := gameecs.NewEngine(snapshot, moveEvery, gameecs.EngineOptions{
-		Content: contentBundle,
-		Logger:  logger,
+		Content:                contentBundle,
+		Logger:                 logger,
+		TileFullSyncInterval:   tileFullEvery,
 	})
 	if err != nil {
 		log.Fatalf("engine: %v", err)

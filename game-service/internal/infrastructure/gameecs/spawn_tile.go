@@ -7,11 +7,13 @@ import (
 )
 
 // spawnTileAt заменяет тайлы в клетке на слое и создаёт одну сущность тайла (как TileSpawnSystem).
+// rec при не-nil получает upsert в дельту state (тот же снимок, что уходит в wire).
 func spawnTileAt(
 	w *ecs.World,
 	tiles *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 	filter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
 	in gamekit.TileSpawnIntent,
+	rec *Engine,
 ) {
 	rot := gamekit.NormalizeTileRotationQuarter(in.Rotation)
 	inst := gamekit.NormalizeTileInstanceArgsJSON(in.InstanceArgs)
@@ -23,6 +25,11 @@ func spawnTileAt(
 		&gamekit.TileTexture{Name: in.Texture, InstanceArgs: inst},
 		&gamekit.TileSolid{Blocks: in.Blocks},
 	)
+	if rec != nil {
+		in.Rotation = rot
+		in.InstanceArgs = inst
+		rec.recordTileUpsertFromIntent(in)
+	}
 }
 
 func removeTilesAtLayer(w *ecs.World, filter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid], x, y, layer int) {

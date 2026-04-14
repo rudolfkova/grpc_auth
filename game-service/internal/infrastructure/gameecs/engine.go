@@ -19,6 +19,9 @@ import (
 type EngineOptions struct {
 	Content *content.Bundle
 	Logger  *slog.Logger
+	// TileFullSyncInterval — как часто в payload state отдавать полный список тайлов; между полными снимками — только tile_updates.
+	// <=0: по умолчанию 1s.
+	TileFullSyncInterval time.Duration
 }
 
 // Engine — адаптер доменного порта GameEngine на Ark ECS.
@@ -37,6 +40,10 @@ type Engine struct {
 	moveApplyEvery   int
 	moveApplyCounter int
 	diagStride       diagStrideState
+
+	tileFullSyncEvery    time.Duration
+	lastFullTileSyncAt   time.Time
+	pendingTileUpdates   []gamekit.TileUpdate
 }
 
 var _ ports.GameEngine = (*Engine)(nil)
@@ -53,13 +60,18 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int, opts EngineOptions
 	playerFilter := ecs.NewFilter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite](w)
 	tileMapper := ecs.NewMap5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	tileFilter := ecs.NewFilter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
+	tileEvery := opts.TileFullSyncInterval
+	if tileEvery <= 0 {
+		tileEvery = time.Second
+	}
 	e := &Engine{
-		world:          w,
-		byUser:         make(map[int64]ecs.Entity),
-		playerMapper:   playerMapper,
-		tileMapper:     tileMapper,
-		tileFilter:     tileFilter,
-		moveApplyEvery: movementApplyEveryNTicks,
+		world:             w,
+		byUser:            make(map[int64]ecs.Entity),
+		playerMapper:      playerMapper,
+		tileMapper:        tileMapper,
+		tileFilter:        tileFilter,
+		moveApplyEvery:    movementApplyEveryNTicks,
+		tileFullSyncEvery: tileEvery,
 	}
 	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter, opts.Content, opts.Logger, e)
 	e.systems = reg
@@ -77,6 +89,8 @@ func (e *Engine) ProcessTick(actions []models.Action) []models.Event {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	e.resetTileDeltaForTick()
+
 	emit := gameplay.NewEmitter(16)
 
 	applyMove := true
@@ -93,11 +107,8 @@ func (e *Engine) ProcessTick(actions []models.Action) []models.Event {
 	}
 	players, tiles := e.systems.Update(tickCtx, actions)
 
-	emit.Broadcast("state", gamekit.StatePayload{
-		Players: players,
-		Tiles:   tiles,
-		TickAt:  time.Now().UTC(),
-	})
+	now := time.Now().UTC()
+	emit.Broadcast("state", e.statePayloadForTick(now, players, tiles))
 
 	return emit.Events()
 }

@@ -22,6 +22,12 @@ const (
 	TypeSaveWorldResult = "save_world_result"
 )
 
+// Константы op для StatePayload.TileUpdates (дельта тайлов).
+const (
+	StateTileUpdateUpsert = "upsert"
+	StateTileUpdateRemove = "remove"
+)
+
 // SnapshotSchemaVersion — schema_version для снимка ark-serde, который пишет game-service в world-service.
 const SnapshotSchemaVersion int32 = 1
 
@@ -109,20 +115,35 @@ type Player struct {
 
 // Tile — элемент массива tiles в payload события TypeState.
 type Tile struct {
-	X        int             `json:"x"`
-	Y        int             `json:"y"`
-	Layer    int             `json:"layer"`
-	Rotation int             `json:"rotation"`
-	Texture  string          `json:"texture"`
-	Blocks   bool            `json:"blocks"`
+	X            int             `json:"x"`
+	Y            int             `json:"y"`
+	Layer        int             `json:"layer"`
+	Rotation     int             `json:"rotation"`
+	Texture      string          `json:"texture"`
+	Blocks       bool            `json:"blocks"`
 	InstanceArgs json.RawMessage `json:"instance_args,omitempty"`
 }
 
+// TileUpdate — одно изменение тайла в дельте (type state, поле tile_updates).
+type TileUpdate struct {
+	Op string `json:"op"` // StateTileUpdateUpsert | StateTileUpdateRemove
+	// Upsert: полный тайл как в tiles[].
+	Tile *Tile `json:"tile,omitempty"`
+	// Remove: клетка + слой (все сущности тайла на этом слое удалены).
+	// Без omitempty: (0,0,0) должны сериализоваться.
+	X     int `json:"x"`
+	Y     int `json:"y"`
+	Layer int `json:"layer"`
+}
+
 // StatePayload — полный JSON payload у TypeState (сервер шлёт это же из gamekit; клиент Unmarshal сюда).
+// Тайлы: либо полный снимок (*Tiles), либо только дельта (TileUpdates), либо оба пусты за тик без изменений.
+// Players и TickAt приходят каждый тик.
 type StatePayload struct {
-	Players []Player  `json:"players"`
-	Tiles   []Tile    `json:"tiles"`
-	TickAt  time.Time `json:"tick_at"`
+	Players     []Player      `json:"players"`
+	Tiles       *[]Tile       `json:"tiles,omitempty"`
+	TileUpdates []TileUpdate `json:"tile_updates,omitempty"`
+	TickAt      time.Time     `json:"tick_at"`
 }
 
 // NormalizeTileRotationQuarter приводит произвольное целое к диапазону 0..3 (четверти оборота по часовой стрелке).

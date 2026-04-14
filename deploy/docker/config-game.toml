@@ -1,6 +1,8 @@
 bind_addr = ":50053"
 log_level = "DEBUG"
 tick_rate = "50ms"
+# Полный список тайлов в state раз в интервал; между ними — дельта tile_updates. Env: TILE_FULL_SYNC_INTERVAL.
+tile_full_sync_interval = "1s"
 # Шаг по интенту move не чаще чем раз в N тиков симуляции (1 = каждый тик; 2 ≈ вдвое медленнее ходьба при том же TPS и частоте state).
 movement_apply_every_n_ticks = 2
 queue_size = 1024
