@@ -1,4 +1,10 @@
 *exe
+auth-service-run
+chat-service-run
+gateway-run
+game-service-run
+world-service-run
+character-service-run
 .cursor/
 config.toml
 .env

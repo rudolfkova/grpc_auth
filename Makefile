@@ -1,25 +1,35 @@
 # Сборка сервисов.
-.PHONY: build build-auth build-chat build-gateway build-game build-world build-character start start-auth start-chat start-gateway start-game docker-up docker-down docker-logs docker-reset docker-fix-iptables world-grpc-list world-grpc-ping gen-character tidy-character
+.PHONY: build build-auth build-chat build-gateway build-game build-world build-character start start-auth start-chat start-gateway start-game docker-up docker-down docker-logs docker-reset docker-fix-iptables world-grpc-list world-grpc-ping gen-character tidy-character serve-game-lan lan-help
 ifeq ($(OS),Windows_NT)
 	BIN_EXT := .exe
 else
 	BIN_EXT :=
 endif
 BIN_DIR := .
+# Имена бинарников не совпадают с каталогами ./auth-service/, ./gateway/ и т.д. — иначе go build кладёт exe внутрь папки, а ./auth-service оказывается каталогом (Permission denied).
+BIN_AUTH ?= auth-service-run
+BIN_CHAT ?= chat-service-run
+BIN_GATEWAY ?= gateway-run
+BIN_GAME ?= game-service-run
+BIN_WORLD ?= world-service-run
+BIN_CHARACTER ?= character-service-run
 DOCKER ?= sudo docker
 
 build-auth:
-	go build -v -o $(BIN_DIR)/auth-service$(BIN_EXT) ./auth-service/cmd/auth-service
+	go build -v -o $(BIN_DIR)/$(BIN_AUTH)$(BIN_EXT) ./auth-service/cmd/auth-service
 build-chat:
-	go build -v -o $(BIN_DIR)/chat-service$(BIN_EXT) ./chat-service/cmd/chat-service
+	go build -v -o $(BIN_DIR)/$(BIN_CHAT)$(BIN_EXT) ./chat-service/cmd/chat-service
 build-gateway:
-	go build -v -o $(BIN_DIR)/gateway$(BIN_EXT) ./gateway/cmd/gateway
+	go build -v -o $(BIN_DIR)/$(BIN_GATEWAY)$(BIN_EXT) ./gateway/cmd/gateway
 build-game:
-	go build -v -o $(BIN_DIR)/game-service$(BIN_EXT) ./game-service/cmd/game-service
+	go build -v -o $(BIN_DIR)/$(BIN_GAME)$(BIN_EXT) ./game-service/cmd/game-service
+ifneq ($(OS),Windows_NT)
+	chmod +x $(BIN_DIR)/$(BIN_GAME)$(BIN_EXT)
+endif
 build-world:
-	go build -v -o $(BIN_DIR)/world-service$(BIN_EXT) ./world-service/cmd/world-service
+	go build -v -o $(BIN_DIR)/$(BIN_WORLD)$(BIN_EXT) ./world-service/cmd/world-service
 build-character:
-	go build -v -o $(BIN_DIR)/character-service$(BIN_EXT) ./character-service/cmd/character-service
+	go build -v -o $(BIN_DIR)/$(BIN_CHARACTER)$(BIN_EXT) ./character-service/cmd/character-service
 
 # Проверка world-service по gRPC без локального grpcurl (образ fullstorydev/grpcurl).
 # Нужен запущенный сервис на localhost:50054. На Linux используется --network host.
@@ -34,13 +44,29 @@ world-grpc-ping:
 # Запуск сервисов.
 .PHONY: start
 start-auth:
-	$(BIN_DIR)/auth-service$(BIN_EXT) -config-path=config.toml
+	$(BIN_DIR)/$(BIN_AUTH)$(BIN_EXT) -config-path=config.toml
 start-chat:
-	$(BIN_DIR)/chat-service$(BIN_EXT) -config-path=config-chat.toml
+	$(BIN_DIR)/$(BIN_CHAT)$(BIN_EXT) -config-path=config-chat.toml
 start-gateway:
-	$(BIN_DIR)/gateway$(BIN_EXT) -config-path=config-gateway.toml
+	$(BIN_DIR)/$(BIN_GATEWAY)$(BIN_EXT) -config-path=config-gateway.toml
 start-game:
-	$(BIN_DIR)/game-service$(BIN_EXT) -config-path=config-game.toml
+	$(BIN_DIR)/$(BIN_GAME)$(BIN_EXT) -config-path=config-game.toml
+
+# --- Друзья по Radmin VPN / LAN (нативный game-service, без Docker) ---
+# Слушает все интерфейсы (GAME_BIND_ADDR). В TOML ":порт" тоже слушает везде, но 0.0.0.0 явно и перекрывается из make.
+LAN_GAME_PORT ?= 50053
+
+# Собрать и запустить game-service: друзья подключаются к ws://<твой VPN/LAN IP>:$(LAN_GAME_PORT)/ws/game
+serve-game-lan: build-game
+	GAME_BIND_ADDR=0.0.0.0:$(LAN_GAME_PORT) $(BIN_DIR)/$(BIN_GAME)$(BIN_EXT) -config-path=config-game.toml
+
+lan-help:
+	@echo "1) Запуск (из корня репо): make serve-game-lan"
+	@echo "2) Узнай свой IP в Radmin VPN или в локальной сети (например ip a / ipconfig)."
+	@echo "3) В клиенте WebSocket: ws://<ЭТОТ_IP>:$(LAN_GAME_PORT)/ws/game"
+	@echo "4) JWT в клиенте = jwt_secret из config-game.toml (сейчас часто dev-значение)."
+	@echo "5) Если в config-game.toml задан world_id — подними world-service (или docker compose) и WORLD_SERVICE_ADDR."
+	@echo "6) Полный стек в Docker: make docker-up — снаружи тот же порт :50053 на хосте (если проброшен)."
 
 # Docker-compose.
 docker-up:

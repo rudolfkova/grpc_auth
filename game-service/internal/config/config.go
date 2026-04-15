@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -60,6 +61,9 @@ type Config struct {
 // EnvTileFullSyncInterval — duration string (time.ParseDuration), перекрывает TOML.
 const EnvTileFullSyncInterval = "TILE_FULL_SYNC_INTERVAL"
 
+// EnvGameBindAddr — HTTP listen addr для game-service (например 0.0.0.0:50053 для VPN/LAN); перекрывает TOML bind_addr.
+const EnvGameBindAddr = "GAME_BIND_ADDR"
+
 // NewConfig returns defaults for local/dev.
 func NewConfig() *Config {
 	return &Config{
@@ -109,5 +113,8 @@ func ApplyEnvOverrides(cfg *Config) {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			cfg.TileFullSyncInterval = d
 		}
+	}
+	if v, ok := os.LookupEnv(EnvGameBindAddr); ok && strings.TrimSpace(v) != "" {
+		cfg.BindAddr = strings.TrimSpace(v)
 	}
 }
