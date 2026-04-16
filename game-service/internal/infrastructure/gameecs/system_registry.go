@@ -31,13 +31,17 @@ func NewSystemRegistry(
 		perAction: []System{
 			NewMoveIntentCaptureSystem(playerMapper),
 			NewDamageSystem(playerMapper),
+			NewInventoryMoveSystem(engine),
+			NewPickupSystem(contentBundle, engine),
 			NewTileSpawnSystem(w, tileMapper, tileFilter, engine),
 			NewTileClearSystem(w, tileFilter, engine),
 			NewInteractSystem(contentBundle, interactLog, engine),
 		},
 		postTick: []System{
 			NewMovementApplySystem(playerMapper, playerFilter, tileFilter),
-			NewSnapshotSystem(playerFilter, tileFilter),
+			NewSnapshotSystem(playerFilter, tileFilter, func(ent ecs.Entity) gamekit.PlayerInventory {
+				return engine.playerInventorySnapshotLocked(ent)
+			}),
 		},
 	}
 }

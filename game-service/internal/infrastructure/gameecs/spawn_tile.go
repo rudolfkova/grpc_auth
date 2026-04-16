@@ -34,8 +34,6 @@ func spawnTileAt(
 
 func removeTilesAtLayer(w *ecs.World, filter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid], x, y, layer int) {
 	q := filter.Query()
-	defer q.Close()
-
 	var rm []ecs.Entity
 	for q.Next() {
 		pos, lay, _, _, _ := q.Get()
@@ -43,6 +41,7 @@ func removeTilesAtLayer(w *ecs.World, filter *ecs.Filter5[gamekit.GridPos, gamek
 			rm = append(rm, q.Entity())
 		}
 	}
+	q.Close()
 	for _, e := range rm {
 		w.RemoveEntity(e)
 	}

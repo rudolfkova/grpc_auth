@@ -36,8 +36,6 @@ func (s *TileClearSystem) Update(ctx *TickContext) {
 	}
 
 	q := s.filter.Query()
-	defer q.Close()
-
 	type rmEnt struct {
 		ent ecs.Entity
 		x   int
@@ -51,6 +49,7 @@ func (s *TileClearSystem) Update(ctx *TickContext) {
 			rm = append(rm, rmEnt{ent: q.Entity(), x: pos.X, y: pos.Y, z: lay.Z})
 		}
 	}
+	q.Close()
 	for _, r := range rm {
 		if s.engine != nil {
 			s.engine.recordTileRemove(r.x, r.y, r.z)

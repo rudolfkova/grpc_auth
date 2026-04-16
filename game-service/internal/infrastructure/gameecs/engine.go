@@ -31,8 +31,10 @@ type Engine struct {
 
 	byUser map[int64]ecs.Entity
 
-	playerMapper *ecs.Map7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite]
-	tileMapper   *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
+	playerMapper      *ecs.Map7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite]
+	playerGearMapper  *ecs.Map1[gamekit.PlayerInventory]
+	tileMapper        *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
+	inventoryCatalog  *content.Catalog
 	tileFilter   *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
 	systems      *SystemRegistry
 	moveIntents  MoveIntentStore
@@ -57,6 +59,7 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int, opts EngineOptions
 	}
 	w := ecs.NewWorld()
 	playerMapper := ecs.NewMap7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite](w)
+	playerGearMapper := ecs.NewMap1[gamekit.PlayerInventory](w)
 	playerFilter := ecs.NewFilter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite](w)
 	tileMapper := ecs.NewMap5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
 	tileFilter := ecs.NewFilter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid](w)
@@ -64,14 +67,20 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int, opts EngineOptions
 	if tileEvery <= 0 {
 		tileEvery = time.Second
 	}
+	var invCat *content.Catalog
+	if opts.Content != nil && opts.Content.Catalog != nil {
+		invCat = opts.Content.Catalog
+	}
 	e := &Engine{
-		world:             w,
-		byUser:            make(map[int64]ecs.Entity),
-		playerMapper:      playerMapper,
-		tileMapper:        tileMapper,
-		tileFilter:        tileFilter,
-		moveApplyEvery:    movementApplyEveryNTicks,
-		tileFullSyncEvery: tileEvery,
+		world:              w,
+		byUser:             make(map[int64]ecs.Entity),
+		playerMapper:       playerMapper,
+		playerGearMapper:   playerGearMapper,
+		tileMapper:         tileMapper,
+		tileFilter:         tileFilter,
+		moveApplyEvery:     movementApplyEveryNTicks,
+		tileFullSyncEvery:  tileEvery,
+		inventoryCatalog:   invCat,
 	}
 	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter, opts.Content, opts.Logger, e)
 	e.systems = reg
@@ -140,6 +149,8 @@ func (e *Engine) EnsurePlayerEntity(userID int64) ecs.Entity {
 		&st,
 		&spr,
 	)
+	inv := gamekit.DefaultPlayerInventory()
+	e.playerGearMapper.Add(ent, &inv)
 	e.byUser[userID] = ent
 	return ent
 }
@@ -171,6 +182,9 @@ func (e *Engine) EnsurePlayerJoin(userID int64, d gamekit.CharacterPlayData) {
 		&st,
 		&spr,
 	)
+	inv := d.Inventory
+	gamekit.NormalizeInventory(&inv)
+	e.playerGearMapper.Add(ent, &inv)
 	e.byUser[userID] = ent
 }
 
@@ -183,11 +197,13 @@ func (e *Engine) PlayerCharacterData(userID int64) ([]byte, error) {
 		return gamekit.MarshalCharacterPlayData(gamekit.NewDefaultCharacterPlayData())
 	}
 	_, pos, _, hp, face, st, sp := e.playerMapper.Get(ent)
+	inv := e.playerInventorySnapshotLocked(ent)
 	cpd := gamekit.CharacterPlayData{
 		X: pos.X, Y: pos.Y,
 		HP: hp.HP, FaceDX: face.DX, FaceDY: face.DY,
-		Stats:  *st,
-		Sprite: sp.Name,
+		Stats:     *st,
+		Sprite:    sp.Name,
+		Inventory: inv,
 	}
 	return gamekit.MarshalCharacterPlayData(cpd)
 }

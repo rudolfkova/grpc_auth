@@ -52,7 +52,7 @@ func (s *InteractSystem) Update(ctx *TickContext) {
 
 	var tileInst json.RawMessage
 	if in.ClickX != nil && in.ClickY != nil {
-		raw, ok := s.resolveTileInstanceArgs(in)
+		_, _, _, raw, ok := s.engine.resolveCatalogTileAtClick(in)
 		if !ok {
 			return
 		}
@@ -73,52 +73,4 @@ func (s *InteractSystem) Update(ctx *TickContext) {
 	if err := s.bundle.Runner.Run(context.Background(), rcx, sc, base); err != nil && s.log != nil {
 		s.log.Warn("interact scenario failed", "item_def_id", id, "err", err)
 	}
-}
-
-// resolveTileInstanceArgs возвращает instance_args с тайла по (click_x, click_y) и правилам слоя.
-func (s *InteractSystem) resolveTileInstanceArgs(in gamekit.InteractIntent) (json.RawMessage, bool) {
-	itemID := strings.TrimSpace(in.ItemDefID)
-	x, y := *in.ClickX, *in.ClickY
-
-	type hit struct {
-		z    int
-		args json.RawMessage
-	}
-	var hits []hit
-	q := s.engine.tileFilter.Query()
-	defer q.Close()
-	for q.Next() {
-		pos, lay, _, tex, _ := q.Get()
-		if pos.X != x || pos.Y != y {
-			continue
-		}
-		// Договорённость: имя текстуры тайла совпадает с item_def_id из каталога.
-		if tex.Name != itemID {
-			continue
-		}
-		var args json.RawMessage
-		if len(tex.InstanceArgs) > 0 {
-			args = append(json.RawMessage(nil), tex.InstanceArgs...)
-		}
-		hits = append(hits, hit{z: lay.Z, args: args})
-	}
-	if len(hits) == 0 {
-		return nil, false
-	}
-	if in.ClickLayer != nil {
-		want := *in.ClickLayer
-		for _, h := range hits {
-			if h.z == want {
-				return h.args, true
-			}
-		}
-		return nil, false
-	}
-	best := hits[0]
-	for _, h := range hits[1:] {
-		if h.z > best.z {
-			best = h
-		}
-	}
-	return best.args, true
 }

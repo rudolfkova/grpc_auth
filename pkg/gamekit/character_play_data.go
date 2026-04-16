@@ -7,7 +7,7 @@ import (
 )
 
 // CharacterDataSchemaVersion — версия JSON в character-service.data (поднимать при несовместимых изменениях).
-const CharacterDataSchemaVersion int32 = 2
+const CharacterDataSchemaVersion int32 = 3
 
 // CharacterStats — классические характеристики (контракт с character.data и событием state).
 // Значения по умолчанию для нового персонажа: 10 по каждой характеристике (как типичный модификатор +0 в D&D-подобных системах).
@@ -49,6 +49,8 @@ type CharacterPlayData struct {
 	Stats         CharacterStats `json:"stats"`
 	// Sprite — имя папки/листа ходьбы (как в клиенте: anim/<Sprite>/<Sprite>.png), например "Male 01-1", "Female 01-2".
 	Sprite string `json:"sprite,omitempty"`
+	// Inventory — экипировка и рюкзак; при отсутствии в старом JSON заполняется пустым в Normalize.
+	Inventory PlayerInventory `json:"inventory,omitempty"`
 }
 
 // NewDefaultCharacterPlayData — шаблон для пустого character.data.
@@ -60,6 +62,7 @@ func NewDefaultCharacterPlayData() CharacterPlayData {
 		FaceDY:        DefaultPlayerFaceDY,
 		Stats:         DefaultCharacterStats(),
 		Sprite:        DefaultPlayerSprite,
+		Inventory:     DefaultPlayerInventory(),
 	}
 }
 
@@ -80,6 +83,7 @@ func (d *CharacterPlayData) Normalize() {
 	if strings.TrimSpace(d.Sprite) == "" {
 		d.Sprite = DefaultPlayerSprite
 	}
+	NormalizeInventory(&d.Inventory)
 }
 
 // ParseCharacterPlayData разбирает bytes из character-service; пустой слайс → дефолты.

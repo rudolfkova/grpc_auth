@@ -14,7 +14,9 @@ type ItemDef struct {
 	ID       string        `json:"id"`
 	Name     string        `json:"name"`
 	Pickable bool          `json:"pickable"`
-	Interact *InteractSpec `json:"interact,omitempty"`
+	// IsStorage — предмет-«контейнер»; в рюкзак класть нельзя (нет сумки в сумке).
+	IsStorage bool          `json:"is_storage,omitempty"`
+	Interact  *InteractSpec `json:"interact,omitempty"`
 }
 
 // InteractSpec ссылка на файл сценария и аргументы по умолчанию (мержатся в каждый шаг).

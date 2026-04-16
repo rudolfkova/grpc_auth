@@ -271,6 +271,34 @@ func TestNewEngine_fromArkSerdeSnapshot(t *testing.T) {
 	}
 }
 
+func TestEngine_inventoryMoveSwapHands(t *testing.T) {
+	e, err := NewEngine(nil, 1, EngineOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := gamekit.NewDefaultCharacterPlayData()
+	d.Inventory.HandMain = "sword"
+	d.Inventory.HandOff = "axe"
+	e.EnsurePlayerJoin(1, d)
+	pl, _ := json.Marshal(gamekit.InventoryMoveIntent{From: gamekit.InvSlotHandMain, To: gamekit.InvSlotHandOff})
+	evs := e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInventoryMove, Payload: pl}})
+	if len(evs) != 1 || evs[0].Type != "state" {
+		t.Fatalf("events: %+v", evs)
+	}
+	body, _ := json.Marshal(evs[0].Payload)
+	var st gamekit.StatePayload
+	if err := json.Unmarshal(body, &st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Players) != 1 {
+		t.Fatalf("players: %+v", st.Players)
+	}
+	inv := st.Players[0].Inventory
+	if inv.HandMain != "axe" || inv.HandOff != "sword" {
+		t.Fatalf("after swap want axe/sword, got main=%q off=%q", inv.HandMain, inv.HandOff)
+	}
+}
+
 func TestEngine_stateIncludesFacing(t *testing.T) {
 	e, err := NewEngine(nil, 1, EngineOptions{})
 	if err != nil {
@@ -343,6 +371,45 @@ func TestEngine_moveApplyEveryNTicks(t *testing.T) {
 	e.mu.Unlock()
 	if pos.X != 2 || pos.Y != 0 {
 		t.Fatalf("tick 3 apply move: want (2,0), got (%d,%d)", pos.X, pos.Y)
+	}
+}
+
+func TestEngine_pickupFloorGemIntoBackpack(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.EnsurePlayerJoin(1, gamekit.NewDefaultCharacterPlayData())
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 1, Y: 0, Layer: 0, Texture: "floor_gem", Blocks: false})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	cx, cy := 1, 0
+	pickPayload, _ := json.Marshal(gamekit.PickupIntent{ItemDefID: "floor_gem", ClickX: &cx, ClickY: &cy})
+	evs := e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypePickupItem, Payload: pickPayload}})
+	if len(evs) != 1 || evs[0].Type != "state" {
+		t.Fatalf("events: %+v", evs)
+	}
+	body, _ := json.Marshal(evs[0].Payload)
+	var st gamekit.StatePayload
+	if err := json.Unmarshal(body, &st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Players) != 1 || st.Players[0].Inventory.Backpack[0] != "floor_gem" {
+		t.Fatalf("backpack: %+v", st.Players[0].Inventory)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	q := e.tileFilter.Query()
+	defer q.Close()
+	for q.Next() {
+		pos, lay, _, tex, _ := q.Get()
+		if pos.X == 1 && pos.Y == 0 && lay.Z == 0 && tex.Name == "floor_gem" {
+			t.Fatal("tile should be removed after pickup")
+		}
 	}
 }
 

@@ -12,14 +12,16 @@ import (
 type SnapshotSystem struct {
 	playerFilter *ecs.Filter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite]
 	tileFilter   *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
+	invSnapshot  func(ent ecs.Entity) gamekit.PlayerInventory
 }
 
 // NewSnapshotSystem создаёт систему снимка.
 func NewSnapshotSystem(
 	playerFilter *ecs.Filter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite],
 	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
+	invSnapshot func(ent ecs.Entity) gamekit.PlayerInventory,
 ) *SnapshotSystem {
-	return &SnapshotSystem{playerFilter: playerFilter, tileFilter: tileFilter}
+	return &SnapshotSystem{playerFilter: playerFilter, tileFilter: tileFilter, invSnapshot: invSnapshot}
 }
 
 func (s *SnapshotSystem) Update(ctx *TickContext) {
@@ -29,6 +31,7 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 	out := make([]gamekit.Player, 0, 64)
 	for q.Next() {
 		ref, pos, _, hp, face, st, sp := q.Get()
+		ent := q.Entity()
 		fdx, fdy := face.DX, face.DY
 		if fdx == 0 && fdy == 0 {
 			fdx, fdy = gamekit.DefaultPlayerFaceDX, gamekit.DefaultPlayerFaceDY
@@ -41,15 +44,20 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 		if sprite == "" {
 			sprite = gamekit.DefaultPlayerSprite
 		}
+		inv := gamekit.DefaultPlayerInventory()
+		if s.invSnapshot != nil {
+			inv = s.invSnapshot(ent)
+		}
 		out = append(out, gamekit.Player{
-			ID:     ref.UserID,
-			X:      pos.X,
-			Y:      pos.Y,
-			HP:     hp.HP,
-			FaceDX: fdx,
-			FaceDY: fdy,
-			Stats:  stats,
-			Sprite: sprite,
+			ID:        ref.UserID,
+			X:         pos.X,
+			Y:         pos.Y,
+			HP:        hp.HP,
+			FaceDX:    fdx,
+			FaceDY:    fdy,
+			Stats:     stats,
+			Sprite:    sprite,
+			Inventory: inv,
 		})
 	}
 	ctx.Players = out

@@ -14,8 +14,10 @@ const (
 	TypeSpawnTile = "spawn_tile"
 	TypeClearTile = "clear_tile"
 	TypeSaveWorld = "save_world"
-	TypeInteract  = "interact"
-	TypeState     = "state"
+	TypeInteract       = "interact"
+	TypePickupItem     = "pickup_item"
+	TypeInventoryMove  = "inventory_move"
+	TypeState          = "state"
 	TypeReject    = "reject"
 	TypeError     = "error"
 	// TypeSaveWorldResult — ответ на save_world (только инициатору).
@@ -72,6 +74,22 @@ type TileClearIntent struct {
 	Layer int `json:"layer"`
 }
 
+// InventoryMoveIntent — payload для TypeInventoryMove: обмен (swap) предметами между двумя слотами игрока.
+// Имена слотов: armor, accessory_1, accessory_2, hand_main, hand_off, backpack_0..backpack_4.
+type InventoryMoveIntent struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// PickupIntent — payload для TypePickupItem: подобрать pickable-тайл с пола в первый свободный слот рюкзака.
+// Поля как у InteractIntent: нужны item_def_id и оба click_x, click_y; click_layer — опционально (как при interact).
+type PickupIntent struct {
+	ItemDefID  string `json:"item_def_id"`
+	ClickX     *int   `json:"click_x,omitempty"`
+	ClickY     *int   `json:"click_y,omitempty"`
+	ClickLayer *int   `json:"click_layer"`
+}
+
 // InteractIntent — payload для TypeInteract: запуск сценария каталога для item_def_id.
 // Резолв по клетке (опционально): при обоих click_x и click_y ищется тайл с texture == item_def_id
 // и interact в каталоге; при отсутствии click_layer — слой с максимальным layer среди подходящих.
@@ -111,6 +129,8 @@ type Player struct {
 	Stats  CharacterStats `json:"stats"`
 	// Sprite — id листа ходьбы (как CharacterPlayData.Sprite); клиент: data/anim/<sprite>/<sprite>.png.
 	Sprite string `json:"sprite"`
+	// Inventory — экипировка, руки, рюкзак (item_def_id на слот).
+	Inventory PlayerInventory `json:"inventory"`
 }
 
 // Tile — элемент массива tiles в payload события TypeState.
