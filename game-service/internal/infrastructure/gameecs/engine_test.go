@@ -413,6 +413,95 @@ func TestEngine_pickupFloorGemIntoBackpack(t *testing.T) {
 	}
 }
 
+func TestEngine_dropItemPutsTileOnLayer3(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.EnsurePlayerJoin(1, gamekit.NewDefaultCharacterPlayData())
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{X: 1, Y: 0, Layer: 0, Texture: "floor_gem", Blocks: false})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	cx, cy := 1, 0
+	pickPayload, _ := json.Marshal(gamekit.PickupIntent{ItemDefID: "floor_gem", ClickX: &cx, ClickY: &cy})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypePickupItem, Payload: pickPayload}})
+
+	dropPayload, _ := json.Marshal(gamekit.DropItemIntent{From: "backpack_0"})
+	evs := e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeDropItem, Payload: dropPayload}})
+	if len(evs) != 1 || evs[0].Type != "state" {
+		t.Fatalf("events: %+v", evs)
+	}
+	body, _ := json.Marshal(evs[0].Payload)
+	var st gamekit.StatePayload
+	if err := json.Unmarshal(body, &st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Players) != 1 || st.Players[0].Inventory.Backpack[0] != "" {
+		t.Fatalf("backpack should be empty: %+v", st.Players[0].Inventory)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	_, pos, _, _, _, _, _ := e.playerMapper.Get(e.EnsurePlayerEntity(1))
+	found := false
+	q := e.tileFilter.Query()
+	defer q.Close()
+	for q.Next() {
+		p, lay, _, tex, _ := q.Get()
+		if p.X == pos.X && p.Y == pos.Y && lay.Z == gamekit.DroppedItemTileLayer && tex.Name == "floor_gem" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected floor_gem tile at player (%d,%d) layer %d", pos.X, pos.Y, gamekit.DroppedItemTileLayer)
+	}
+}
+
+func TestEngine_dropItemIgnoredWhenLayer3Occupied(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.EnsurePlayerJoin(1, gamekit.NewDefaultCharacterPlayData())
+	spawn1, _ := json.Marshal(gamekit.TileSpawnIntent{X: 1, Y: 0, Layer: 0, Texture: "floor_gem", Blocks: false})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawn1}})
+	cx, cy := 1, 0
+	pick1, _ := json.Marshal(gamekit.PickupIntent{ItemDefID: "floor_gem", ClickX: &cx, ClickY: &cy})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypePickupItem, Payload: pick1}})
+	drop1, _ := json.Marshal(gamekit.DropItemIntent{From: "backpack_0"})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeDropItem, Payload: drop1}})
+
+	spawn2, _ := json.Marshal(gamekit.TileSpawnIntent{X: 1, Y: 0, Layer: 0, Texture: "floor_gem", Blocks: false})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawn2}})
+	pick2, _ := json.Marshal(gamekit.PickupIntent{ItemDefID: "floor_gem", ClickX: &cx, ClickY: &cy})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypePickupItem, Payload: pick2}})
+	e.mu.Lock()
+	invPick := e.playerGearMapper.Get(e.byUser[1])
+	e.mu.Unlock()
+	if invPick == nil || invPick.Backpack[0] != "floor_gem" {
+		t.Fatal("expected second gem in backpack_0")
+	}
+
+	drop2, _ := json.Marshal(gamekit.DropItemIntent{From: "backpack_0"})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeDropItem, Payload: drop2}})
+
+	e.mu.Lock()
+	inv := e.playerGearMapper.Get(e.byUser[1])
+	e.mu.Unlock()
+	if inv == nil || inv.Backpack[0] != "floor_gem" {
+		t.Fatalf("drop on occupied layer 3 must keep item; inv=%+v", inv)
+	}
+}
+
 func TestEngine_InteractWorldSpawnTile(t *testing.T) {
 	base := filepath.Join("testdata", "content")
 	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))

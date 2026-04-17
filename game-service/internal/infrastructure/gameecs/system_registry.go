@@ -33,6 +33,7 @@ func NewSystemRegistry(
 			NewDamageSystem(playerMapper),
 			NewInventoryMoveSystem(engine),
 			NewPickupSystem(contentBundle, engine),
+			NewDropItemSystem(engine),
 			NewTileSpawnSystem(w, tileMapper, tileFilter, engine),
 			NewTileClearSystem(w, tileFilter, engine),
 			NewInteractSystem(contentBundle, interactLog, engine),

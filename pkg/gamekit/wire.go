@@ -16,6 +16,7 @@ const (
 	TypeSaveWorld = "save_world"
 	TypeInteract       = "interact"
 	TypePickupItem     = "pickup_item"
+	TypeDropItem       = "drop_item"
 	TypeInventoryMove  = "inventory_move"
 	TypeState          = "state"
 	TypeReject    = "reject"
@@ -79,6 +80,12 @@ type TileClearIntent struct {
 type InventoryMoveIntent struct {
 	From string `json:"from"`
 	To   string `json:"to"`
+}
+
+// DropItemIntent — payload для TypeDropItem: выбросить предмет из слота под ноги (тайл на слое DroppedItemTileLayer).
+type DropItemIntent struct {
+	// From — имя слота (как для inventory_move): armor, accessory_1, accessory_2, hand_main, hand_off, backpack_0..4.
+	From string `json:"from"`
 }
 
 // PickupIntent — payload для TypePickupItem: подобрать pickable-тайл с пола в первый свободный слот рюкзака.

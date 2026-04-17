@@ -17,6 +17,9 @@ const (
 	InvSlotBackpackPref = "backpack_" // + индекс 0..BackpackSlotCount-1
 )
 
+// DroppedItemTileLayer — слой тайла при выбросе предмета (как у игрока для сортировки; 0 — земля, 1 — лежащее на земле).
+const DroppedItemTileLayer = 3
+
 // PlayerInventory — экипировка, руки и рюкзак: в каждом слоте не более одного item_def_id (пустая строка = пусто).
 type PlayerInventory struct {
 	Armor        string `json:"armor,omitempty"`
@@ -63,6 +66,16 @@ func ParseInventorySlot(slot string) (backpackIdx int, isBackpack bool, ok bool)
 		return int(c - '0'), true, true
 	}
 	return -1, false, false
+}
+
+// ItemAtSlot возвращает item_def_id в слоте (имена как InvSlot*, backpack_0..).
+func (inv *PlayerInventory) ItemAtSlot(slot string) (itemDefID string, ok bool) {
+	return inv.getSlot(slot)
+}
+
+// PutItemAtSlot записывает item_def_id в слот; пустая строка очищает слот.
+func (inv *PlayerInventory) PutItemAtSlot(slot, itemDefID string) bool {
+	return inv.setSlot(slot, itemDefID)
 }
 
 func (inv *PlayerInventory) getSlot(slot string) (string, bool) {
