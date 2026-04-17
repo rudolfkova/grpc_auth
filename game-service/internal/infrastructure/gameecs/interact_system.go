@@ -60,6 +60,15 @@ func (s *InteractSystem) Update(ctx *TickContext) {
 	}
 
 	base := content.MergeInteractBase(it.Interact.Args, tileInst)
+	if in.ClickX != nil {
+		base["click_x"] = *in.ClickX
+	}
+	if in.ClickY != nil {
+		base["click_y"] = *in.ClickY
+	}
+	if in.ClickLayer != nil {
+		base["click_layer"] = *in.ClickLayer
+	}
 	rcx := &content.RunContext{
 		PlayerID:  a.PlayerID,
 		ItemDefID: id,

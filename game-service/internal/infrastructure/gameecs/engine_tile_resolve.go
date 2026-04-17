@@ -7,7 +7,26 @@ import (
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 )
 
-// resolveCatalogTileAtClick ищет тайл в (click_x, click_y), у которого texture == item_def_id.
+func tileItemDefID(tex *gamekit.TileTexture) string {
+	if tex == nil {
+		return ""
+	}
+	if len(tex.InstanceArgs) > 0 {
+		var payload struct {
+			ItemDefID string `json:"item_def_id"`
+		}
+		if err := json.Unmarshal(tex.InstanceArgs, &payload); err == nil {
+			if id := strings.TrimSpace(payload.ItemDefID); id != "" {
+				return id
+			}
+		}
+	}
+	return strings.TrimSpace(tex.Name)
+}
+
+// resolveCatalogTileAtClick ищет тайл в (click_x, click_y), у которого item_def_id совпадает с intent:
+// 1) instance_args.item_def_id
+// 2) fallback на texture.
 // Возвращает координаты клетки, слой и instance_args выбранного тайла (как для interact).
 func (e *Engine) resolveCatalogTileAtClick(in gamekit.InteractIntent) (x, y, layer int, inst json.RawMessage, ok bool) {
 	if in.ClickX == nil || in.ClickY == nil {
@@ -29,7 +48,7 @@ func (e *Engine) resolveCatalogTileAtClick(in gamekit.InteractIntent) (x, y, lay
 		if pos.X != x || pos.Y != y {
 			continue
 		}
-		if tex.Name != itemID {
+		if tileItemDefID(tex) != itemID {
 			continue
 		}
 		var args json.RawMessage

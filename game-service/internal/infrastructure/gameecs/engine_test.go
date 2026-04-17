@@ -544,10 +544,16 @@ func TestEngine_InteractClickUsesTileInstanceArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst, _ := json.Marshal(map[string]any{
-		"x": 9, "y": 8, "layer": 0, "rotation": 0, "texture": "grass", "blocks": false,
+		"item_def_id": "test_lever",
+		"x":           9,
+		"y":           8,
+		"layer":       0,
+		"rotation":    0,
+		"texture":     "grass",
+		"blocks":      false,
 	})
 	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
-		X: 5, Y: 5, Layer: 0, Texture: "test_lever", Blocks: false,
+		X: 5, Y: 5, Layer: 0, Texture: "tent_1", Blocks: false,
 		InstanceArgs: inst,
 	})
 	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
@@ -570,6 +576,256 @@ func TestEngine_InteractClickUsesTileInstanceArgs(t *testing.T) {
 	if !found {
 		t.Fatal("expected grass tile at (9,8) from merged instance_args")
 	}
+}
+
+func TestEngine_pickupUsesInstanceArgsItemDefIDFallbackChain(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.EnsurePlayerJoin(1, gamekit.NewDefaultCharacterPlayData())
+	inst, _ := json.Marshal(map[string]any{"item_def_id": "floor_gem"})
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
+		X:            1,
+		Y:            0,
+		Layer:        0,
+		Texture:      "tent_1",
+		Blocks:       false,
+		InstanceArgs: inst,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+
+	cx, cy := 1, 0
+	pickPayload, _ := json.Marshal(gamekit.PickupIntent{
+		ItemDefID: "floor_gem",
+		ClickX:    &cx,
+		ClickY:    &cy,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypePickupItem, Payload: pickPayload}})
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	ent, ok := e.byUser[1]
+	if !ok || !e.playerGearMapper.HasAll(ent) {
+		t.Fatal("player entity not found")
+	}
+	inv := e.playerGearMapper.Get(ent)
+	if inv == nil || inv.Backpack[0] != "floor_gem" {
+		t.Fatalf("pickup by instance_args item_def_id failed, inv=%+v", inv)
+	}
+}
+
+func TestEngine_TentUnfoldAndFoldAnchorOnlySeparateIDs(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foldedArgs, _ := json.Marshal(map[string]any{"item_def_id": "tent_folded"})
+	spawnFoldedPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
+		X:            10,
+		Y:            10,
+		Layer:        gamekit.DroppedItemTileLayer,
+		Texture:      "tent_1",
+		Blocks:       false,
+		InstanceArgs: foldedArgs,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeSpawnTile, Payload: spawnFoldedPayload}})
+
+	cx, cy, cl := 10, 10, gamekit.DroppedItemTileLayer
+	unfoldPayload, _ := json.Marshal(gamekit.InteractIntent{
+		ItemDefID:  "tent_folded",
+		ClickX:     &cx,
+		ClickY:     &cy,
+		ClickLayer: &cl,
+	})
+	evs := e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: unfoldPayload}})
+	if len(evs) != 1 || evs[0].Type != gamekit.TypeState {
+		t.Fatalf("unexpected unfold events: %+v", evs)
+	}
+
+	e.mu.Lock()
+	tiles := make(map[[3]int]gamekit.Tile)
+	q := e.tileFilter.Query()
+	for q.Next() {
+		pos, lay, facing, tex, solid := q.Get()
+		tiles[[3]int{pos.X, pos.Y, lay.Z}] = gamekit.Tile{
+			X:            pos.X,
+			Y:            pos.Y,
+			Layer:        lay.Z,
+			Rotation:     facing.RotationQuarter,
+			Texture:      tex.Name,
+			Blocks:       solid.Blocks,
+			InstanceArgs: append(json.RawMessage(nil), tex.InstanceArgs...),
+		}
+	}
+	q.Close()
+	e.mu.Unlock()
+
+	if len(tiles) != 4 {
+		t.Fatalf("unfold expected 4 tent tiles, got %d", len(tiles))
+	}
+	anchor, ok := tiles[[3]int{10, 10, gamekit.DroppedItemTileLayer}]
+	if !ok {
+		t.Fatalf("missing anchor tile at (10,10,%d)", gamekit.DroppedItemTileLayer)
+	}
+	if anchor.Texture != "tent_3" {
+		t.Fatalf("anchor texture mismatch: %+v", anchor)
+	}
+	if topLeft, ok := tiles[[3]int{10, 9, gamekit.DroppedItemTileLayer}]; !ok || topLeft.Texture != "tent_1" {
+		t.Fatalf("top-left texture mismatch: %+v", topLeft)
+	}
+	if topRight, ok := tiles[[3]int{11, 9, gamekit.DroppedItemTileLayer}]; !ok || topRight.Texture != "tent_2" {
+		t.Fatalf("top-right texture mismatch: %+v", topRight)
+	}
+	if bottomRight, ok := tiles[[3]int{11, 10, gamekit.DroppedItemTileLayer}]; !ok || bottomRight.Texture != "tent_4" {
+		t.Fatalf("bottom-right texture mismatch: %+v", bottomRight)
+	}
+	var anchorInst struct {
+		ItemDefID string `json:"item_def_id"`
+	}
+	if err := json.Unmarshal(anchor.InstanceArgs, &anchorInst); err != nil {
+		t.Fatalf("anchor instance_args parse: %v", err)
+	}
+	if anchorInst.ItemDefID != "tent_anchor" {
+		t.Fatalf("anchor item_def_id mismatch: %+v", anchorInst)
+	}
+
+	foldPayload, _ := json.Marshal(gamekit.InteractIntent{
+		ItemDefID:  "tent_anchor",
+		ClickX:     &cx,
+		ClickY:     &cy,
+		ClickLayer: &cl,
+	})
+	evs = e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: foldPayload}})
+	if len(evs) != 1 || evs[0].Type != gamekit.TypeState {
+		t.Fatalf("unexpected fold events: %+v", evs)
+	}
+	body, err := json.Marshal(evs[0].Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st gamekit.StatePayload
+	if err := json.Unmarshal(body, &st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.TileUpdates) < 5 {
+		t.Fatalf("fold must emit remove+upsert tile updates, got %+v", st.TileUpdates)
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	q = e.tileFilter.Query()
+	defer q.Close()
+	count := 0
+	var folded gamekit.Tile
+	for q.Next() {
+		pos, lay, facing, tex, solid := q.Get()
+		count++
+		folded = gamekit.Tile{
+			X:            pos.X,
+			Y:            pos.Y,
+			Layer:        lay.Z,
+			Rotation:     facing.RotationQuarter,
+			Texture:      tex.Name,
+			Blocks:       solid.Blocks,
+			InstanceArgs: append(json.RawMessage(nil), tex.InstanceArgs...),
+		}
+	}
+	if count != 1 {
+		t.Fatalf("after fold expected single folded tile, got %d", count)
+	}
+	if folded.X != 10 || folded.Y != 10 || folded.Layer != gamekit.DroppedItemTileLayer {
+		t.Fatalf("folded tile position mismatch: %+v", folded)
+	}
+	var foldedInst struct {
+		ItemDefID string `json:"item_def_id"`
+	}
+	if err := json.Unmarshal(folded.InstanceArgs, &foldedInst); err != nil {
+		t.Fatalf("folded instance_args parse: %v", err)
+	}
+	if foldedInst.ItemDefID != "tent_folded" {
+		t.Fatalf("folded item_def_id mismatch: %+v", foldedInst)
+	}
+}
+
+func TestEngine_TentUnfoldIgnoresWhenFootprintOccupiedAtLayer3(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foldedArgs, _ := json.Marshal(map[string]any{"item_def_id": "tent_folded"})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeSpawnTile, Payload: mustJSON(t, gamekit.TileSpawnIntent{
+		X:            10,
+		Y:            10,
+		Layer:        gamekit.DroppedItemTileLayer,
+		Texture:      "tent_1",
+		Blocks:       false,
+		InstanceArgs: foldedArgs,
+	})}})
+	// Occupy future top-right footprint cell (x+1, y-1) on layer 3.
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeSpawnTile, Payload: mustJSON(t, gamekit.TileSpawnIntent{
+		X:       11,
+		Y:       9,
+		Layer:   gamekit.DroppedItemTileLayer,
+		Texture: "floor_gem",
+		Blocks:  false,
+	})}})
+
+	cx, cy, cl := 10, 10, gamekit.DroppedItemTileLayer
+	unfoldPayload := mustJSON(t, gamekit.InteractIntent{
+		ItemDefID:  "tent_folded",
+		ClickX:     &cx,
+		ClickY:     &cy,
+		ClickLayer: &cl,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: unfoldPayload}})
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	q := e.tileFilter.Query()
+	defer q.Close()
+
+	byPos := make(map[[3]int]string)
+	for q.Next() {
+		pos, lay, _, tex, _ := q.Get()
+		byPos[[3]int{pos.X, pos.Y, lay.Z}] = tex.Name
+	}
+	if got := byPos[[3]int{10, 10, gamekit.DroppedItemTileLayer}]; got != "tent_1" {
+		t.Fatalf("folded tile should remain at anchor, got %q", got)
+	}
+	if got := byPos[[3]int{11, 9, gamekit.DroppedItemTileLayer}]; got != "floor_gem" {
+		t.Fatalf("occupied footprint tile should remain, got %q", got)
+	}
+	if _, ok := byPos[[3]int{11, 10, gamekit.DroppedItemTileLayer}]; ok {
+		t.Fatalf("unexpected deployed tile at (11,10,%d)", gamekit.DroppedItemTileLayer)
+	}
+	if _, ok := byPos[[3]int{10, 9, gamekit.DroppedItemTileLayer}]; ok {
+		t.Fatalf("unexpected deployed tile at (10,9,%d)", gamekit.DroppedItemTileLayer)
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal json: %v", err)
+	}
+	return b
 }
 
 func TestEngine_quietSecondTickOmitsTileKeysInJSON(t *testing.T) {
