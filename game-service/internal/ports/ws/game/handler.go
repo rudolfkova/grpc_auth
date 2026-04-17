@@ -2,7 +2,6 @@ package gamews
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -10,8 +9,7 @@ import (
 	"time"
 
 	gameapp "game/internal/app/game"
-	"game/internal/domain/models"
-	"game/internal/infrastructure/characterclient"
+	"game/internal/domain/ports"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -33,9 +31,7 @@ type Handler struct {
 	logger    *slog.Logger
 	jwtSecret string
 	app       *gameapp.Service
-
-	characterServiceAddr  string
-	characterServiceToken string
+	telemetry gameapp.Telemetry
 
 	mu      sync.RWMutex
 	clients map[*websocket.Conn]clientConn
@@ -47,169 +43,84 @@ type clientConn struct {
 	out    chan gamekit.Envelope
 }
 
-func NewHandler(logger *slog.Logger, jwtSecret string, app *gameapp.Service, characterServiceAddr, characterServiceToken string) *Handler {
+func NewHandler(logger *slog.Logger, jwtSecret string, app *gameapp.Service, telemetry gameapp.Telemetry) *Handler {
+	if telemetry == nil {
+		telemetry = gameapp.NewNoopTelemetry()
+	}
 	h := &Handler{
-		logger:                 logger,
-		jwtSecret:              jwtSecret,
-		app:                    app,
-		characterServiceAddr:   strings.TrimSpace(characterServiceAddr),
-		characterServiceToken:  characterServiceToken,
-		clients:                make(map[*websocket.Conn]clientConn),
-		byUser:                 make(map[int64]map[*websocket.Conn]chan gamekit.Envelope),
+		logger:    logger,
+		jwtSecret: jwtSecret,
+		app:       app,
+		telemetry: telemetry,
+		clients:   make(map[*websocket.Conn]clientConn),
+		byUser:    make(map[int64]map[*websocket.Conn]chan gamekit.Envelope),
 	}
 	go h.broadcastSnapshots()
 	return h
 }
 
-func (h *Handler) broadcastSnapshots() {
-	for out := range h.app.Events() {
-		h.send(out)
-	}
-}
-
-func (h *Handler) send(out models.Outbound) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	if out.RecipientUserID == 0 {
-		// broadcast
-		for _, c := range h.clients {
-			select {
-			case c.out <- out.Message:
-			default:
-			}
-		}
-		return
-	}
-
-	if conns, ok := h.byUser[out.RecipientUserID]; ok {
-		for _, ch := range conns {
-			select {
-			case ch <- out.Message:
-			default:
-			}
-		}
-	}
-}
-
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		h.telemetry.ObserveWSUpgradeFailure()
 		h.logger.Error("ws upgrade failed", slog.String("err", err.Error()))
 		return
 	}
 
 	userID, email, err := h.claimsFromToken(r.URL.Query().Get("token"))
 	if err != nil {
-		_ = conn.WriteJSON(map[string]any{
-			"service": "game",
-			"type":    "error",
-			"payload": map[string]any{"message": "invalid token"},
-		})
+		h.sendTokenError(conn, "invalid token")
 		_ = conn.Close()
 		return
 	}
 
-	out := make(chan gamekit.Envelope, 64)
-	h.mu.Lock()
-	h.clients[conn] = clientConn{userID: userID, out: out}
-	if _, ok := h.byUser[userID]; !ok {
-		h.byUser[userID] = make(map[*websocket.Conn]chan gamekit.Envelope)
-	}
-	h.byUser[userID][conn] = out
-	h.mu.Unlock()
+	out := h.registerConnection(conn, userID)
 
 	h.logger.Info("player connected",
 		slog.Int64("user_id", userID),
 		slog.String("email", email),
 	)
+	h.telemetry.ObserveWSConnectionOpened()
 
 	var (
 		characterPersisted     bool
-		characterPlay          characterclient.PlayCharacter
+		characterPlay          ports.CharacterIdentity
 		characterSessionActive bool
 	)
-	if h.characterServiceAddr != "" {
+	if h.app.CharacterSessionsEnabled() {
 		rawID := strings.TrimSpace(r.URL.Query().Get("character_id"))
 		if rawID == "" {
-			_ = conn.WriteJSON(map[string]any{
-				"service": "game",
-				"type":    "error",
-				"payload": map[string]any{"message": "character_id query parameter is required when character service is configured"},
-			})
+			h.sendTokenError(conn, "character_id query parameter is required when character service is configured")
 			_ = conn.Close()
 			return
 		}
 		if _, err := uuid.Parse(rawID); err != nil {
-			_ = conn.WriteJSON(map[string]any{
-				"service": "game",
-				"type":    "error",
-				"payload": map[string]any{"message": "character_id must be a valid UUID"},
-			})
+			h.sendTokenError(conn, "character_id must be a valid UUID")
 			_ = conn.Close()
 			return
 		}
 		resolveCtx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		resp, err := characterclient.ResolvePlayCharacter(resolveCtx, h.characterServiceAddr, h.characterServiceToken, userID, rawID)
+		resp, err := h.app.ResolveCharacterJoin(resolveCtx, userID, rawID)
 		cancel()
 		if err != nil {
 			h.logger.Warn("ResolvePlayCharacter failed", slog.Int64("user_id", userID), slog.String("err", err.Error()))
-			_ = conn.WriteJSON(map[string]any{
-				"service": "game",
-				"type":    "error",
-				"payload": map[string]any{"message": "character resolve failed: " + err.Error()},
-			})
+			h.sendTokenError(conn, "character resolve failed: "+err.Error())
 			_ = conn.Close()
 			return
 		}
-		ch := resp.GetCharacter()
-		if ch == nil || strings.TrimSpace(ch.GetId()) == "" {
-			_ = conn.WriteJSON(map[string]any{
-				"service": "game",
-				"type":    "error",
-				"payload": map[string]any{"message": "character resolve returned empty character"},
-			})
+		if resp == nil || strings.TrimSpace(resp.Character.ID) == "" {
+			h.sendTokenError(conn, "character resolve returned empty character")
 			_ = conn.Close()
 			return
 		}
-		characterPersisted = resp.GetPersisted()
-		characterPlay = characterclient.PlayCharacter{
-			ID:          ch.GetId(),
-			DisplayName: ch.GetDisplayName(),
-			Description: ch.GetDescription(),
-		}
+		characterPersisted = resp.Persisted
+		characterPlay = resp.Character
 		characterSessionActive = true
-		h.app.PrepareCharacterJoin(userID, ch.GetData())
+		h.app.PrepareCharacterJoin(userID, resp.Data)
 	}
 
 	defer func() {
-		h.logger.Info("player disconnected",
-			slog.Int64("user_id", userID),
-			slog.String("email", email),
-		)
-		var lastForUser bool
-		h.mu.Lock()
-		if c, ok := h.clients[conn]; ok {
-			delete(h.clients, conn)
-			if m, ok := h.byUser[c.userID]; ok {
-				delete(m, conn)
-				if len(m) == 0 {
-					delete(h.byUser, c.userID)
-					lastForUser = true
-				}
-			}
-		}
-		h.mu.Unlock()
-		if characterSessionActive && lastForUser {
-			saveCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			err := h.app.PersistCharacterPlaySession(saveCtx, h.characterServiceAddr, h.characterServiceToken, userID, characterPersisted, characterPlay)
-			cancel()
-			if err != nil {
-				h.logger.Warn("PersistCharacterPlaySession failed", slog.Int64("user_id", userID), slog.String("err", err.Error()))
-			}
-		}
-		close(out)
-		_ = conn.Close()
+		h.unregisterConnection(conn, userID, out, characterSessionActive, characterPersisted, characterPlay)
 	}()
 
 	go func() {
@@ -220,14 +131,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	writeReject := func(reason, message, reqType, reqService string) {
-		env, err := buildRejectEnvelope(reason, message, reqType, reqService)
-		if err != nil {
-			return
-		}
-		_ = conn.WriteJSON(env)
-	}
-
 	for {
 		mt, data, err := conn.ReadMessage()
 		if err != nil {
@@ -236,30 +139,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if mt != websocket.TextMessage && mt != websocket.BinaryMessage {
 			continue
 		}
-
-		var env gamekit.Envelope
-		if err := json.Unmarshal(data, &env); err != nil {
-			writeReject(RejectReasonInvalidJSON, "message is not valid JSON", "", "")
-			continue
-		}
-
-		if env.Service != gamekit.ServiceGame {
-			writeReject(RejectReasonWrongService, "expected service \"game\"", env.Type, env.Service)
-			continue
-		}
-		if env.Type == "" {
-			writeReject(RejectReasonMissingType, "field \"type\" is required", "", env.Service)
-			continue
-		}
-
-		ok := h.app.Submit(models.Action{
-			PlayerID: userID,
-			Type:     env.Type,
-			Payload:  env.Payload,
-		})
-		if !ok {
-			writeReject(RejectReasonQueueFull, "action queue is full, try again later", env.Type, env.Service)
-		}
+		h.processIncomingEnvelope(conn, userID, data)
 	}
 }
 

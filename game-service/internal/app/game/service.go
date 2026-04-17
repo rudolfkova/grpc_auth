@@ -9,8 +9,8 @@ import (
 
 	"game/internal/domain/models"
 	"game/internal/domain/ports"
-	"game/internal/infrastructure/worldclient"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
+	"google.golang.org/grpc/status"
 )
 
 // Коды payload.save_world_result.code (стабильные для клиента).
@@ -27,13 +27,14 @@ const (
 type Service struct {
 	logger *slog.Logger
 
-	engine   ports.GameEngine
-	tickRate time.Duration
-	ingress  chan models.Action
-	events   chan models.Outbound
+	engine    ports.GameEngine
+	telemetry Telemetry
+	tickRate  time.Duration
+	ingress   chan models.Action
+	events    chan models.Outbound
 
-	worldServiceAddr  string
-	worldServiceToken string
+	worldStore        ports.WorldStore
+	characterSessions ports.CharacterSessions
 	saveWorldAdminID  int64
 }
 
@@ -42,7 +43,9 @@ func NewService(
 	engine ports.GameEngine,
 	tickRate time.Duration,
 	queueSize int,
-	worldServiceAddr, worldServiceToken string,
+	worldStore ports.WorldStore,
+	characterSessions ports.CharacterSessions,
+	telemetry Telemetry,
 	saveWorldAdminUserID int64,
 ) *Service {
 	if logger == nil {
@@ -54,14 +57,18 @@ func NewService(
 	if queueSize <= 0 {
 		queueSize = 1024
 	}
+	if telemetry == nil {
+		telemetry = noopTelemetry{}
+	}
 	return &Service{
 		logger:            logger,
 		engine:            engine,
+		telemetry:         telemetry,
 		tickRate:          tickRate,
 		ingress:           make(chan models.Action, queueSize),
 		events:            make(chan models.Outbound, queueSize),
-		worldServiceAddr:  strings.TrimSpace(worldServiceAddr),
-		worldServiceToken: worldServiceToken,
+		worldStore:        worldStore,
+		characterSessions: characterSessions,
 		saveWorldAdminID:  saveWorldAdminUserID,
 	}
 }
@@ -88,6 +95,7 @@ func (s *Service) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			tickStarted := time.Now()
 			actions := s.collectActions()
 			var forTick []models.Action
 			for _, a := range actions {
@@ -114,8 +122,10 @@ func (s *Service) Run(ctx context.Context) {
 				select {
 				case s.events <- out:
 				default:
+					s.telemetry.ObserveEventDropped("events")
 				}
 			}
+			s.telemetry.ObserveTick(time.Since(tickStarted), len(forTick))
 		}
 	}
 }
@@ -139,6 +149,7 @@ func (s *Service) handleSaveWorld(ctx context.Context, a models.Action) {
 		select {
 		case s.events <- out:
 		default:
+			s.telemetry.ObserveEventDropped("events")
 		}
 	}
 	defer send()
@@ -146,11 +157,13 @@ func (s *Service) handleSaveWorld(ctx context.Context, a models.Action) {
 	if s.saveWorldAdminID == 0 {
 		payload.Code = SaveWorldCodeDisabled
 		payload.Message = "save_world is disabled (save_world_admin_user_id is 0)"
+		s.telemetry.ObserveSaveWorldResult(false, payload.Code)
 		return
 	}
 	if a.PlayerID != s.saveWorldAdminID {
 		payload.Code = SaveWorldCodeForbidden
 		payload.Message = "only configured admin user_id may save the world"
+		s.telemetry.ObserveSaveWorldResult(false, payload.Code)
 		return
 	}
 
@@ -158,18 +171,21 @@ func (s *Service) handleSaveWorld(ctx context.Context, a models.Action) {
 	if err := json.Unmarshal(a.Payload, &in); err != nil {
 		payload.Code = SaveWorldCodeInvalidName
 		payload.Message = "invalid save_world payload"
+		s.telemetry.ObserveSaveWorldResult(false, payload.Code)
 		return
 	}
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		payload.Code = SaveWorldCodeInvalidName
 		payload.Message = "name is required"
+		s.telemetry.ObserveSaveWorldResult(false, payload.Code)
 		return
 	}
 
-	if s.worldServiceAddr == "" {
+	if s.worldStore == nil {
 		payload.Code = SaveWorldCodeUnconfigured
-		payload.Message = "world_service_addr is empty"
+		payload.Message = "world store is not configured"
+		s.telemetry.ObserveSaveWorldResult(false, payload.Code)
 		return
 	}
 
@@ -178,17 +194,29 @@ func (s *Service) handleSaveWorld(ctx context.Context, a models.Action) {
 		s.logger.Warn("save_world serialize failed", "err", err)
 		payload.Code = SaveWorldCodeSerializeFailed
 		payload.Message = "failed to serialize world"
+		s.telemetry.ObserveSaveWorldResult(false, payload.Code)
 		return
 	}
 
 	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	res, err := worldclient.SaveWorldByName(callCtx, s.worldServiceAddr, s.worldServiceToken,
-		name, strings.TrimSpace(in.Description), snap, gamekit.SnapshotSchemaVersion)
+	callStarted := time.Now()
+	res, err := s.worldStore.SaveWorldByName(callCtx, ports.SaveWorldRequest{
+		Name:          name,
+		Description:   strings.TrimSpace(in.Description),
+		Snapshot:      snap,
+		SchemaVersion: gamekit.SnapshotSchemaVersion,
+	})
+	if err != nil {
+		s.telemetry.ObserveGRPCClientCall("world", "save_world_by_name", status.Code(err).String(), time.Since(callStarted))
+	} else {
+		s.telemetry.ObserveGRPCClientCall("world", "save_world_by_name", "OK", time.Since(callStarted))
+	}
 	if err != nil {
 		s.logger.Warn("save_world upstream failed", "name", name, "err", err)
 		payload.Code = SaveWorldCodeUpstreamFailed
 		payload.Message = err.Error()
+		s.telemetry.ObserveSaveWorldResult(false, payload.Code)
 		return
 	}
 
@@ -196,6 +224,7 @@ func (s *Service) handleSaveWorld(ctx context.Context, a models.Action) {
 	payload.WorldID = res.WorldID
 	payload.Name = name
 	payload.Version = res.Version
+	s.telemetry.ObserveSaveWorldResult(true, "ok")
 }
 
 func (s *Service) collectActions() []models.Action {

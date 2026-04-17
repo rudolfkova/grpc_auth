@@ -8,21 +8,14 @@ import (
 
 // RejectReason — машинно читаемая причина отказа (для клиентского логирования).
 const (
-	RejectReasonQueueFull     = "queue_full"
-	RejectReasonWrongService  = "wrong_service"
-	RejectReasonMissingType   = "missing_type"
-	RejectReasonInvalidJSON   = "invalid_json"
+	RejectReasonQueueFull    = "queue_full"
+	RejectReasonWrongService = "wrong_service"
+	RejectReasonMissingType  = "missing_type"
+	RejectReasonInvalidJSON  = "invalid_json"
 )
 
-type rejectPayload struct {
-	Reason          string `json:"reason"`
-	Message         string `json:"message"`
-	RequestType     string `json:"request_type,omitempty"`
-	RequestService  string `json:"request_service,omitempty"`
-}
-
 func buildRejectEnvelope(reason, message, reqType, reqService string) (gamekit.Envelope, error) {
-	body, err := json.Marshal(rejectPayload{
+	body, err := json.Marshal(gamekit.RejectPayload{
 		Reason:         reason,
 		Message:        message,
 		RequestType:    reqType,

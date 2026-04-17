@@ -1,0 +1,15 @@
+.git
+.gitignore
+.cursor
+.idea
+**/.DS_Store
+**/tmp
+**/dist
+**/build
+**/coverage
+**/node_modules
+**/*.log
+**/*-run
+agent-transcripts
+*.md
+!README.md

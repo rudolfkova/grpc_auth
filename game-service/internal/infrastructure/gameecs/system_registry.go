@@ -16,6 +16,25 @@ type SystemRegistry struct {
 	postTick  []System
 }
 
+// Pipeline names фиксируют порядок выполнения систем (часть поведенческого контракта тика).
+const (
+	PipelineMoveIntentCapture = "move_intent_capture"
+	PipelineDamage            = "damage"
+	PipelineInventoryMove     = "inventory_move"
+	PipelinePickup            = "pickup"
+	PipelineDropItem          = "drop_item"
+	PipelineTileSpawn         = "tile_spawn"
+	PipelineTileClear         = "tile_clear"
+	PipelineInteract          = "interact"
+	PipelineMovementApply     = "movement_apply"
+	PipelineSnapshot          = "snapshot"
+)
+
+type namedSystem struct {
+	name   string
+	system System
+}
+
 // NewSystemRegistry собирает дефолтный набор систем для одного World.
 func NewSystemRegistry(
 	w *ecs.World,
@@ -27,23 +46,54 @@ func NewSystemRegistry(
 	interactLog *slog.Logger,
 	engine *Engine,
 ) *SystemRegistry {
+	perAction := []namedSystem{
+		{name: PipelineMoveIntentCapture, system: NewMoveIntentCaptureSystem(playerMapper)},
+		{name: PipelineDamage, system: NewDamageSystem(playerMapper)},
+		{name: PipelineInventoryMove, system: NewInventoryMoveSystem(engine)},
+		{name: PipelinePickup, system: NewPickupSystem(contentBundle, engine)},
+		{name: PipelineDropItem, system: NewDropItemSystem(engine)},
+		{name: PipelineTileSpawn, system: NewTileSpawnSystem(w, tileMapper, tileFilter, engine)},
+		{name: PipelineTileClear, system: NewTileClearSystem(w, tileFilter, engine)},
+		{name: PipelineInteract, system: NewInteractSystem(contentBundle, interactLog, engine)},
+	}
+	postTick := []namedSystem{
+		{name: PipelineMovementApply, system: NewMovementApplySystem(playerMapper, playerFilter, tileFilter)},
+		{name: PipelineSnapshot, system: NewSnapshotSystem(playerFilter, tileFilter, func(ent ecs.Entity) gamekit.PlayerInventory {
+			return engine.playerInventorySnapshotLocked(ent)
+		})},
+	}
+
 	return &SystemRegistry{
-		perAction: []System{
-			NewMoveIntentCaptureSystem(playerMapper),
-			NewDamageSystem(playerMapper),
-			NewInventoryMoveSystem(engine),
-			NewPickupSystem(contentBundle, engine),
-			NewDropItemSystem(engine),
-			NewTileSpawnSystem(w, tileMapper, tileFilter, engine),
-			NewTileClearSystem(w, tileFilter, engine),
-			NewInteractSystem(contentBundle, interactLog, engine),
-		},
-		postTick: []System{
-			NewMovementApplySystem(playerMapper, playerFilter, tileFilter),
-			NewSnapshotSystem(playerFilter, tileFilter, func(ent ecs.Entity) gamekit.PlayerInventory {
-				return engine.playerInventorySnapshotLocked(ent)
-			}),
-		},
+		perAction: flattenSystems(perAction),
+		postTick:  flattenSystems(postTick),
+	}
+}
+
+func flattenSystems(in []namedSystem) []System {
+	out := make([]System, 0, len(in))
+	for _, s := range in {
+		out = append(out, s.system)
+	}
+	return out
+}
+
+func (r *SystemRegistry) PerActionPipelineNames() []string {
+	return []string{
+		PipelineMoveIntentCapture,
+		PipelineDamage,
+		PipelineInventoryMove,
+		PipelinePickup,
+		PipelineDropItem,
+		PipelineTileSpawn,
+		PipelineTileClear,
+		PipelineInteract,
+	}
+}
+
+func (r *SystemRegistry) PostTickPipelineNames() []string {
+	return []string{
+		PipelineMovementApply,
+		PipelineSnapshot,
 	}
 }
 

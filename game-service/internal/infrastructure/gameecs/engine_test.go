@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"game/internal/domain/models"
+
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit/content"
 

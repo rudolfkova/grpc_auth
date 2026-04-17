@@ -8,6 +8,8 @@
 
 Сервер по-прежнему живёт в `game-service`; сюда перенесено только то, что должно быть **общим контрактом**.
 
+Правила эволюции контракта: см. `COMPATIBILITY.md`.
+
 ---
 
 ## Подключение в другом модуле Go
@@ -103,12 +105,12 @@ import "github.com/rudolfkova/grpc_auth/pkg/gamekit"
 ## WebSocket: константы и `Envelope`
 
 ```go
-gamekit.ServiceGame   // "game"
-gamekit.TypeMove      // "move"
-gamekit.TypeHit       // "hit"
-gamekit.TypeSpawnTile // "spawn_tile"
-gamekit.TypeClearTile // "clear_tile"
-gamekit.TypeSaveWorld // "save_world"
+gamekit.ServiceGame         // "game"
+gamekit.TypeMove            // "move"
+gamekit.TypeHit             // "hit"
+gamekit.TypeSpawnTile       // "spawn_tile"
+gamekit.TypeClearTile       // "clear_tile"
+gamekit.TypeSaveWorld       // "save_world"
 gamekit.TypeState           // "state"
 gamekit.TypeReject          // "reject"
 gamekit.TypeError           // "error"
@@ -217,6 +219,13 @@ if env.Type == gamekit.TypeState {
 - Реализация систем ECS — `game-service/internal/infrastructure/gameecs`.
 
 ---
+
+## Reject/Error payload
+
+Для унификации клиент/сервер payload'ы базовых ошибок берите из `gamekit`:
+
+- `gamekit.RejectPayload` для `type: "reject"`
+- `gamekit.ErrorPayload` для `type: "error"`
 
 ## Кратко для нейросети (контекст задачи)
 

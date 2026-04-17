@@ -1,5 +1,5 @@
 # Сборка сервисов.
-.PHONY: build build-auth build-chat build-gateway build-game build-world build-character start start-auth start-chat start-gateway start-game docker-up docker-down docker-logs docker-reset docker-fix-iptables world-grpc-list world-grpc-ping gen-character tidy-character serve-game-lan lan-help
+.PHONY: build build-auth build-chat build-gateway build-game build-world build-character start start-auth start-chat start-gateway start-game docker-up docker-up-with-iptables docker-down docker-logs docker-reset docker-reset-soft docker-reset-wipe docker-fix-iptables world-grpc-list world-grpc-ping gen-character tidy-character serve-game-lan lan-help migrate-auth-up migrate-auth-down migrate-chat-up migrate-chat-down migrate-world-up migrate-world-down migrate-character-up migrate-character-down
 ifeq ($(OS),Windows_NT)
 	BIN_EXT := .exe
 else
@@ -14,6 +14,7 @@ BIN_GAME ?= game-service-run
 BIN_WORLD ?= world-service-run
 BIN_CHARACTER ?= character-service-run
 DOCKER ?= sudo docker
+COMPOSE := $(DOCKER) compose
 
 build-auth:
 	go build -v -o $(BIN_DIR)/$(BIN_AUTH)$(BIN_EXT) ./auth-service/cmd/auth-service
@@ -70,18 +71,29 @@ lan-help:
 
 # Docker-compose.
 docker-up:
+	$(COMPOSE) up --build -d
+
+docker-up-with-iptables:
 	$(MAKE) docker-fix-iptables
-	$(DOCKER) compose up --build -d
+	$(MAKE) docker-up
 
 docker-down:
-	$(DOCKER) compose down --remove-orphans
+	$(COMPOSE) down --remove-orphans
 
 docker-logs:
-	$(DOCKER) compose logs -f
+	$(COMPOSE) logs -f --tail=200 $(SERVICE)
 
 docker-reset:
-	$(DOCKER) compose down --remove-orphans -v
-	$(DOCKER) rm -f grpc-auth-redis grpc-auth-postgres grpc-auth-service grpc-chat-service grpc-gateway grpc_auth-migrate-1 grpc_auth-migrate-chat-1 grpc_auth-postgres-init-dbs-1 2>/dev/null || true
+	$(MAKE) docker-reset-soft
+
+docker-reset-soft:
+	$(COMPOSE) down --remove-orphans
+	$(COMPOSE) up --build -d
+
+docker-reset-wipe:
+	@echo "WARNING: docker-reset-wipe removes postgres/redis volumes and all local stack data."
+	$(COMPOSE) down --remove-orphans -v
+	$(COMPOSE) up --build -d
 
 docker-fix-iptables:
 	sudo iptables -t filter -N DOCKER-ISOLATION-STAGE-1 2>/dev/null || true
@@ -98,10 +110,38 @@ lint-chat:
 
 # Миграции сервисов.
 .PHONY: migrate
+DB_DSN_AUTH ?=
+DB_DSN_CHAT ?=
+DB_DSN_WORLD ?=
+DB_DSN_CHARACTER ?=
+
 migrate-auth-up:
-	migrate -path auth-service/migrations -database "$(DB_DSN)" up
+	@[ -n "$(DB_DSN_AUTH)" ] || (echo "DB_DSN_AUTH is required"; exit 1)
+	migrate -path auth-service/migrations -database "$(DB_DSN_AUTH)" up
+migrate-auth-down:
+	@[ -n "$(DB_DSN_AUTH)" ] || (echo "DB_DSN_AUTH is required"; exit 1)
+	migrate -path auth-service/migrations -database "$(DB_DSN_AUTH)" down
+
 migrate-chat-up:
-	migrate -path chat-service/migrations -database "$(DB_DSN)" up
+	@[ -n "$(DB_DSN_CHAT)" ] || (echo "DB_DSN_CHAT is required"; exit 1)
+	migrate -path chat-service/migrations -database "$(DB_DSN_CHAT)" up
+migrate-chat-down:
+	@[ -n "$(DB_DSN_CHAT)" ] || (echo "DB_DSN_CHAT is required"; exit 1)
+	migrate -path chat-service/migrations -database "$(DB_DSN_CHAT)" down
+
+migrate-world-up:
+	@[ -n "$(DB_DSN_WORLD)" ] || (echo "DB_DSN_WORLD is required"; exit 1)
+	migrate -path world-service/migrations -database "$(DB_DSN_WORLD)" up
+migrate-world-down:
+	@[ -n "$(DB_DSN_WORLD)" ] || (echo "DB_DSN_WORLD is required"; exit 1)
+	migrate -path world-service/migrations -database "$(DB_DSN_WORLD)" down
+
+migrate-character-up:
+	@[ -n "$(DB_DSN_CHARACTER)" ] || (echo "DB_DSN_CHARACTER is required"; exit 1)
+	migrate -path character-service/migrations -database "$(DB_DSN_CHARACTER)" up
+migrate-character-down:
+	@[ -n "$(DB_DSN_CHARACTER)" ] || (echo "DB_DSN_CHARACTER is required"; exit 1)
+	migrate -path character-service/migrations -database "$(DB_DSN_CHARACTER)" down
 
 # Генерация gRPC.
 .PHONY: gen

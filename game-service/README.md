@@ -2,6 +2,11 @@
 
 WebSocket-сервис игрового мира: принимает действия игроков, крутит тик-движок, рассылает события.
 
+Ключевые документы для рефакторинга и поддержки:
+
+- `docs/tick_invariants.md` — поведенческие инварианты тика.
+- `docs/architecture_guardrails.md` — архитектурные ограничения и правила зависимостей.
+
 ## Подключение
 
 - **Протокол:** WebSocket (текстовые JSON-сообщения).
@@ -24,7 +29,7 @@ WebSocket-сервис игрового мира: принимает дейст�
 Game-service не смог за отведённое время установить gRPC к **`character_service_addr`**.
 
 - **Процесс game на хосте, character в Docker** — в TOML / env укажите **`localhost:50055`** (порт проброшен на хост), **не** имя `character-service` (оно DNS-ится только между контейнерами).
-- **Оба в Docker (compose)** — по умолчанию в `docker-compose.yml` для game задано **`CHARACTER_SERVICE_ADDR=host.docker.internal:50055`** (тот же обход «битого» DNS, что и для `WORLD_SERVICE_ADDR`). Если у вас нормальная сеть между контейнерами, можно переопределить на **`character-service:50055`**. Дождитесь **healthy** у `character-service`.
+- **Оба в Docker (compose)** — по умолчанию в `docker-compose.yml` для game задано **`CHARACTER_SERVICE_ADDR=character-service:50055`**. Дождитесь **healthy** у `character-service`.
 - **Сервис не поднят / порт закрыт** — проверьте логи `character-service` и что миграции прошли.
 
 В сообщении об ошибке после обновления сервера видно **`character_service="<адрес>"`**, чтобы быстрее поймать опечатку в конфиге.
@@ -203,6 +208,12 @@ Game-service не смог за отведённое время установи
 
 `request_type` и `request_service` могут отсутствовать, если не применимо.
 
+## Observability
+
+- `GET /health` — liveness.
+- `GET /metrics` — Prometheus-метрики (`game_*`).
+- Логирование структурное (`slog`) с едиными полями для lifecycle/ws/save_world.
+
 ## Логи сервера
 
 При успешном подключении и при закрытии соединения пишутся записи **`player connected`** / **`player disconnected`** с полями **`user_id`** и **`email`** (если email есть в JWT).
@@ -218,7 +229,7 @@ Game-service не смог за отведённое время установи
 | Прикладной сервис | `internal/app/game` | Тикер, очередь действий, маршаллинг в `Envelope` |
 | Адаптер WS | `internal/ports/ws/game` | HTTP/WebSocket |
 | Инфраструктура ECS | `internal/infrastructure/gameecs` | Ark `World`, `Engine`, системы, `SystemRegistry` |
-| Сборка | `cmd/game-service` | `worldclient.GetWorld` (если задан `world_id`) → `gameecs.NewEngine(snapshot, movement_apply_every_n_ticks, EngineOptions{…})` → `app.NewService(engine, …)` |
+| Сборка | `cmd/game-service` | `worldclient.GetWorld` (если задан `world_id`) → `gameecs.NewEngine(snapshot, movement_apply_every_n_ticks, EngineOptions{…})` → `app.NewService(engine, worldStore, characterSessions, telemetry, …)` |
 
 ## Движок: ECS (Ark)
 
@@ -260,7 +271,7 @@ go build -o /tmp/game-service ./cmd/game-service
 
 Конфиг и порт — `cmd/game-service`, `internal/config`, `deploy/docker/config-game.toml`. **`tick_rate`** — интервал тика симуляции и частота `state`. **`movement_apply_every_n_ticks`** — как часто именно **движение по интенту** совершает шаг (меньше нагрузка на «скорость бега» без замедления остального тика). Каталог предметов и сценарии **`interact`**: **`content_catalog_path`**, **`content_scripts_dir`** (env **`CONTENT_CATALOG_PATH`**, **`CONTENT_SCRIPTS_DIR`**); в Docker по умолчанию монтируется `./game-service/data` в `/app/data` (см. `game-service/data/content/`).
 
-**Лобби / мир:** поле `world_id` в TOML или переменная окружения **`WORLD_ID`**. Если в окружении процесса переменная **`WORLD_ID` задана** (в т.ч. пустая строка), она **перекрывает** значение из файла — так удобнее прокидывать id из Docker/Kubernetes на инстанс. В `docker-compose` для `game-service` объявлен проброс `WORLD_ID` с хоста (`environment: - WORLD_ID`). Пример: `WORLD_ID=my-lobby-world docker compose up -d game-service`.
+**Лобби / мир:** поле `world_id` в TOML или переменная окружения **`WORLD_ID`**. Если в окружении процесса переменная **`WORLD_ID` задана** (в т.ч. пустая строка), она **перекрывает** значение из файла — так удобнее прокидывать id из Docker/Kubernetes на инстанс. В `docker-compose` для `game-service` переменная `WORLD_ID` прокидывается через `environment` и может быть задана через `.env`/shell. Пример: `WORLD_ID=my-lobby-world docker compose up -d game-service`.
 
 **Загрузка из world-service:** если **`world_id` непустой**, при старте выполняется gRPC **`GetWorld`** на **`world_service_addr`** (TOML или **`WORLD_SERVICE_ADDR`**). Опционально **`world_service_token`** / **`WORLD_SERVICE_TOKEN`** (`x-service-token`). Поле **`snapshot`** (bytes) должно быть **JSON от [ark-serde](https://github.com/mlange-42/ark-serde)** — тот же формат, что даёт `arkserde.Serialize(world)` для `*ecs.World` с компонентами игрока из `gamekit`: **`PlayerRef`**, **`GridPos`**, **`Speed`**, **`Health`**, **`PlayerFace`**, **`CharacterStats`**, **`PlayerSprite`**. После `Deserialize` выполняется миграция: сначала к игрокам без **`PlayerSprite`** добавляется **`DefaultPlayerSprite`**, затем без **`CharacterStats`** — дефолтные характеристики. Пустой `snapshot` — пустой мир. Старые снимки **без** `PlayerFace` могут не загрузиться или дать `(0,0)` в ECS — в **`state`** тогда подставляется **`DefaultPlayerFaceDX`/`DY`** (1, 0). Старый самодельный JSON вида `{"players":[...]}` **больше не поддерживается**. Если задан `world_id`, но пустой `world_service_addr`, процесс завершится с ошибкой.
 

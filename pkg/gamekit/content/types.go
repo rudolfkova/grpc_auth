@@ -11,9 +11,9 @@ type Catalog struct {
 
 // ItemDef описание предмета в каталоге.
 type ItemDef struct {
-	ID       string        `json:"id"`
-	Name     string        `json:"name"`
-	Pickable bool          `json:"pickable"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Pickable bool   `json:"pickable"`
 	// IsStorage — предмет-«контейнер»; в рюкзак класть нельзя (нет сумки в сумке).
 	IsStorage bool          `json:"is_storage,omitempty"`
 	Interact  *InteractSpec `json:"interact,omitempty"`
@@ -21,7 +21,7 @@ type ItemDef struct {
 
 // InteractSpec ссылка на файл сценария и аргументы по умолчанию (мержатся в каждый шаг).
 type InteractSpec struct {
-	Script string `json:"script"`
+	Script string         `json:"script"`
 	Args   map[string]any `json:"args,omitempty"`
 	// EditorInstanceArgsExample только для тулзов/редактора; рантайм сценариев не читает.
 	EditorInstanceArgsExample map[string]any `json:"editor_instance_args_example,omitempty"`

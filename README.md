@@ -62,7 +62,9 @@ make DOCKER=docker docker-up
 - Chat gRPC: `localhost:50052`
 - Game gRPC/internal: `localhost:50053`
 
-`postgres` и `redis` в docker-compose доступны только внутри docker-сети (без проброса портов на хост), чтобы не конфликтовать с локальными инстансами.
+`postgres` и `redis` пробрасываются на localhost хоста:
+- Postgres: `127.0.0.1:15432 -> 5432`
+- Redis: `127.0.0.1:16379 -> 6379`
 
 Остановка:
 
@@ -70,10 +72,16 @@ make DOCKER=docker docker-up
 make docker-down
 ```
 
-Полная очистка docker-стека (контейнеры + тома):
+Мягкий reset docker-стека (перезапуск контейнеров без удаления volumes):
 
 ```bash
 make docker-reset
+```
+
+Жёсткая очистка docker-стека (контейнеры + volumes, потеря данных локальных БД/Redis):
+
+```bash
+make docker-reset-wipe
 ```
 
 Логи:
@@ -82,14 +90,16 @@ make docker-reset
 make docker-logs
 ```
 
-Docker-конфиги лежат в `deploy/docker`.
+Docker-конфиги лежат в `deploy/docker`. Пошаговые сценарии запуска/сброса: `deploy/docker/RUNBOOK.md`.
 
 ### Локально (без Docker)
 
 ```bash
 # Миграции
-make migrate-auth-up DB_DSN="postgres://..."
-make migrate-chat-up DB_DSN="postgres://..."
+make migrate-auth-up DB_DSN_AUTH="postgres://..."
+make migrate-chat-up DB_DSN_CHAT="postgres://..."
+make migrate-world-up DB_DSN_WORLD="postgres://..."
+make migrate-character-up DB_DSN_CHARACTER="postgres://..."
 
 # Сборка
 make build-auth && make build-chat && make build-gateway

@@ -13,12 +13,16 @@ import (
 
 	gameapp "game/internal/app/game"
 	"game/internal/config"
+	"game/internal/infrastructure/characterclient"
 	"game/internal/infrastructure/gameecs"
+	prometheusobs "game/internal/infrastructure/observability/prometheus"
 	"game/internal/infrastructure/worldclient"
 	gamews "game/internal/ports/ws/game"
 
 	"github.com/BurntSushi/toml"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit/content"
+	"google.golang.org/grpc/status"
 )
 
 var configPath string
@@ -38,6 +42,7 @@ func main() {
 
 	logger := config.NewLogger(cfg)
 	logger.Info("game-service starting", "addr", cfg.BindAddr, "world_id", cfg.WorldID)
+	telemetry := prometheusobs.New(nil)
 
 	var snapshot []byte
 	if cfg.WorldID != "" {
@@ -55,8 +60,14 @@ func main() {
 		var err error
 		for {
 			fetchCtx, cancel := context.WithTimeout(context.Background(), perTryTimeout)
+			callStarted := time.Now()
 			fetched, err = worldclient.GetWorld(fetchCtx, cfg.WorldServiceAddr, cfg.WorldServiceToken, cfg.WorldID)
 			cancel()
+			if err != nil {
+				telemetry.ObserveGRPCClientCall("world", "get_world", status.Code(err).String(), time.Since(callStarted))
+			} else {
+				telemetry.ObserveGRPCClientCall("world", "get_world", "OK", time.Since(callStarted))
+			}
 			if err == nil {
 				break
 			}
@@ -92,16 +103,33 @@ func main() {
 		tileFullEvery = time.Second
 	}
 	engine, err := gameecs.NewEngine(snapshot, moveEvery, gameecs.EngineOptions{
-		Content:                contentBundle,
-		Logger:                 logger,
-		TileFullSyncInterval:   tileFullEvery,
+		Content:              contentBundle,
+		Logger:               logger,
+		TileFullSyncInterval: tileFullEvery,
 	})
 	if err != nil {
 		log.Fatalf("engine: %v", err)
 	}
-	app := gameapp.NewService(logger, engine, cfg.TickRate, cfg.QueueSize,
-		cfg.WorldServiceAddr, cfg.WorldServiceToken, cfg.SaveWorldAdminUserID)
-	wsHandler := gamews.NewHandler(logger, cfg.JWTSecret, app, cfg.CharacterServiceAddr, cfg.CharacterServiceToken)
+	var worldStore *worldclient.StoreAdapter
+	if strings.TrimSpace(cfg.WorldServiceAddr) != "" {
+		worldStore = worldclient.NewStoreAdapter(cfg.WorldServiceAddr, cfg.WorldServiceToken)
+	}
+	var characterSessions *characterclient.SessionsAdapter
+	if strings.TrimSpace(cfg.CharacterServiceAddr) != "" {
+		characterSessions = characterclient.NewSessionsAdapter(cfg.CharacterServiceAddr, cfg.CharacterServiceToken)
+	}
+
+	app := gameapp.NewService(
+		logger,
+		engine,
+		cfg.TickRate,
+		cfg.QueueSize,
+		worldStore,
+		characterSessions,
+		telemetry,
+		cfg.SaveWorldAdminUserID,
+	)
+	wsHandler := gamews.NewHandler(logger, cfg.JWTSecret, app, telemetry)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -114,6 +142,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+	mux.Handle("/metrics", promhttp.Handler())
 
 	if err := gamews.Serve(ctx, logger, cfg.BindAddr, mux); err != nil {
 		log.Fatalf("game-service server: %v", err)

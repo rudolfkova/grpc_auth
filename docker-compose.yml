@@ -10,8 +10,8 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./deploy/docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     ports:
-      # Host 15432 avoids conflict with a local Postgres on :5432. Inside the container DB is still :5432.
-      - "15432:5432"
+      # Host port avoids conflict with local Postgres; used by app containers through host.docker.internal.
+      - "${POSTGRES_HOST_PORT:-15432}:5432"
     healthcheck:
       # Use TCP to localhost so "ready" matches what other containers need over the network.
       test: ["CMD-SHELL", "pg_isready -U messenger -d postgres -h 127.0.0.1 -p 5432"]
@@ -44,7 +44,7 @@ services:
     volumes:
       - redis-data:/data
     ports:
-      - "16379:6379"
+      - "${REDIS_HOST_PORT:-16379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -52,7 +52,7 @@ services:
       retries: 10
 
   migrate:
-    image: migrate/migrate:latest
+    image: migrate/migrate:v4.19.0
     # Share postgres network stack so DB is reachable on 127.0.0.1. Avoids bridge/iptables
     # drops that still allow in-container pg_isready over the socket.
     network_mode: "service:postgres"
@@ -63,7 +63,6 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./auth-service/migrations:/migrations/auth:ro
-      - ./chat-service/migrations:/migrations/chat:ro
     command:
       [
         "-path", "/migrations/auth",
@@ -73,12 +72,12 @@ services:
     restart: "no"
 
   migrate-chat:
-    image: migrate/migrate:latest
+    image: migrate/migrate:v4.19.0
     network_mode: "service:postgres"
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
+      postgres-init-dbs:
         condition: service_completed_successfully
     volumes:
       - ./chat-service/migrations:/migrations/chat:ro
@@ -91,12 +90,12 @@ services:
     restart: "no"
 
   migrate-world:
-    image: migrate/migrate:latest
+    image: migrate/migrate:v4.19.0
     network_mode: "service:postgres"
     depends_on:
       postgres:
         condition: service_healthy
-      migrate-chat:
+      postgres-init-dbs:
         condition: service_completed_successfully
     volumes:
       - ./world-service/migrations:/migrations/world:ro
@@ -109,12 +108,12 @@ services:
     restart: "no"
 
   migrate-character:
-    image: migrate/migrate:latest
+    image: migrate/migrate:v4.19.0
     network_mode: "service:postgres"
     depends_on:
       postgres:
         condition: service_healthy
-      migrate-world:
+      postgres-init-dbs:
         condition: service_completed_successfully
     volumes:
       - ./character-service/migrations:/migrations/character:ro
@@ -127,83 +126,99 @@ services:
     restart: "no"
 
   auth-service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: ./auth-service
       dockerfile: Dockerfile
     container_name: grpc-auth-service
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-auth.toml"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate-chat:
+      migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 50051 || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+      start_period: 10s
     volumes:
       - ./deploy/docker/config-auth.toml:/configs/config-auth.toml:ro
     ports:
       - "50051:50051"
 
   chat-service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: .
       dockerfile: chat-service/Dockerfile
     container_name: grpc-chat-service
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-chat.toml"]
     depends_on:
       auth-service:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
       migrate-chat:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 50052 || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+      start_period: 10s
     volumes:
       - ./deploy/docker/config-chat.toml:/configs/config-chat.toml:ro
     ports:
       - "50052:50052"
 
   gateway:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: .
       dockerfile: gateway/Dockerfile
     container_name: grpc-gateway
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-gateway.toml"]
     depends_on:
       auth-service:
-        condition: service_started
+        condition: service_healthy
       chat-service:
-        condition: service_started
+        condition: service_healthy
       game-service:
-        condition: service_started
+        condition: service_healthy
       character-service:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8080 || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+      start_period: 10s
     volumes:
       - ./deploy/docker/config-gateway.toml:/configs/config-gateway.toml:ro
     ports:
       - "8080:8080"
 
   game-service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: .
       dockerfile: game-service/Dockerfile
     container_name: grpc-game-service
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     env_file:
       - path: .env
         required: false
     environment:
-      # Обход битого bridge/DNS между контейнерами: world проброшен на хост :50054 → заходим с хоста.
-      # Рабочая сеть docker: переопредели WORLD_SERVICE_ADDR=world-service:50054
+      # Optional world id to preload on startup; empty starts from an in-memory blank world.
+      WORLD_ID: ${WORLD_ID:-}
       WORLD_SERVICE_ADDR: ${WORLD_SERVICE_ADDR:-host.docker.internal:50054}
-      # Тот же паттерн, что у world/gateway: иначе game→character по имени сервиса может не резолвиться (ResolvePlayCharacter DeadlineExceeded).
-      # Если DNS между контейнерами нормальный: CHARACTER_SERVICE_ADDR=character-service:50055
       CHARACTER_SERVICE_ADDR: ${CHARACTER_SERVICE_ADDR:-host.docker.internal:50055}
     command: ["-config-path", "/configs/config-game.toml"]
     depends_on:
@@ -211,6 +226,12 @@ services:
         condition: service_healthy
       character-service:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 50053 || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+      start_period: 15s
     volumes:
       - ./deploy/docker/config-game.toml:/configs/config-game.toml:ro
       - ./game-service/data:/app/data:ro
@@ -218,6 +239,8 @@ services:
       - "50053:50053"
 
   world-service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: ./world-service
       dockerfile: Dockerfile
@@ -228,8 +251,6 @@ services:
       timeout: 3s
       retries: 25
       start_period: 20s
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-world.toml"]
     depends_on:
       postgres:
@@ -242,6 +263,8 @@ services:
       - "50054:50054"
 
   character-service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: ./character-service
       dockerfile: Dockerfile
@@ -252,8 +275,6 @@ services:
       timeout: 3s
       retries: 25
       start_period: 25s
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     command: ["-config-path", "/configs/config-character.toml"]
     depends_on:
       postgres:

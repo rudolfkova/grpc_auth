@@ -7,15 +7,15 @@ tile_full_sync_interval = "5s"
 movement_apply_every_n_ticks = 2
 queue_size = 1024
 jwt_secret = "123"
-# id мира в world-service (лобби). Env WORLD_ID при наличии перекрывает это значение.
-world_id = "77bd07d2-ded4-4f30-ace7-3c0d6a650562"
-# gRPC world-service. Локально: localhost:50054. В compose game переопределяется на host.docker.internal:50054 (см. docker-compose).
+# id мира в world-service (лобби). Пусто = старт с пустого мира. Env WORLD_ID перекрывает это значение.
+world_id = ""
+# gRPC world-service. Локально: localhost:50054. В compose по умолчанию world-service:50054.
 world_service_addr = "localhost:50054"
 # Если в world-service задан service_token; можно задать через WORLD_SERVICE_TOKEN.
 world_service_token = ""
 # Только этот user_id (из JWT при подключении к WS) может отправлять type "save_world". Env: SAVE_WORLD_ADMIN_USER_ID.
 save_world_admin_user_id = 1
-# character-service gRPC (пусто — без character_id на WS). Локально: localhost:50055. В compose: CHARACTER_SERVICE_ADDR=character-service:50055.
+# character-service gRPC (пусто — без character_id на WS). Локально: localhost:50055. В compose: character-service:50055.
 character_service_addr = ""
 character_service_token = ""
 # Каталог предметов и сценарии interact (pkg/gamekit/content). Пусто — без interact.

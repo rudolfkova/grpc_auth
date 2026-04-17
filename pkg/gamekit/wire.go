@@ -9,18 +9,18 @@ import (
 const (
 	ServiceGame = "game"
 
-	TypeMove      = "move"
-	TypeHit       = "hit"
-	TypeSpawnTile = "spawn_tile"
-	TypeClearTile = "clear_tile"
-	TypeSaveWorld = "save_world"
-	TypeInteract       = "interact"
-	TypePickupItem     = "pickup_item"
-	TypeDropItem       = "drop_item"
-	TypeInventoryMove  = "inventory_move"
-	TypeState          = "state"
-	TypeReject    = "reject"
-	TypeError     = "error"
+	TypeMove          = "move"
+	TypeHit           = "hit"
+	TypeSpawnTile     = "spawn_tile"
+	TypeClearTile     = "clear_tile"
+	TypeSaveWorld     = "save_world"
+	TypeInteract      = "interact"
+	TypePickupItem    = "pickup_item"
+	TypeDropItem      = "drop_item"
+	TypeInventoryMove = "inventory_move"
+	TypeState         = "state"
+	TypeReject        = "reject"
+	TypeError         = "error"
 	// TypeSaveWorldResult — ответ на save_world (только инициатору).
 	TypeSaveWorldResult = "save_world_result"
 )
@@ -58,12 +58,12 @@ type HitIntent struct {
 // TileSpawnIntent — payload для TypeSpawnTile.
 // Layer по умолчанию 0; Rotation — четверти оборота по часовой стрелке (любое целое нормализуется к 0..3).
 type TileSpawnIntent struct {
-	X        int             `json:"x"`
-	Y        int             `json:"y"`
-	Layer    int             `json:"layer"`
-	Rotation int             `json:"rotation"`
-	Texture  string          `json:"texture"`
-	Blocks   bool            `json:"blocks"`
+	X        int    `json:"x"`
+	Y        int    `json:"y"`
+	Layer    int    `json:"layer"`
+	Rotation int    `json:"rotation"`
+	Texture  string `json:"texture"`
+	Blocks   bool   `json:"blocks"`
 	// InstanceArgs опционально: только JSON-объект; null/не объект при spawn отбрасываются (см. нормализацию на сервере).
 	InstanceArgs json.RawMessage `json:"instance_args,omitempty"`
 }
@@ -124,6 +124,20 @@ type SaveWorldResultPayload struct {
 	Version int64  `json:"version,omitempty"`
 }
 
+// RejectPayload — стабильный payload для TypeReject.
+// Используется при отклонении входящего envelope на уровне транспорта/очереди.
+type RejectPayload struct {
+	Reason         string `json:"reason"`
+	Message        string `json:"message"`
+	RequestType    string `json:"request_type,omitempty"`
+	RequestService string `json:"request_service,omitempty"`
+}
+
+// ErrorPayload — payload для TypeError (например, invalid token при open WS).
+type ErrorPayload struct {
+	Message string `json:"message"`
+}
+
 // Player — проекция игрока в payload события TypeState (см. StatePayload.Players).
 // Тот же тип используется в game-service при Broadcast; дублировать поля в других пакетах не нужно.
 type Player struct {
@@ -167,10 +181,10 @@ type TileUpdate struct {
 // Тайлы: либо полный снимок (*Tiles), либо только дельта (TileUpdates), либо оба пусты за тик без изменений.
 // Players и TickAt приходят каждый тик.
 type StatePayload struct {
-	Players     []Player      `json:"players"`
-	Tiles       *[]Tile       `json:"tiles,omitempty"`
+	Players     []Player     `json:"players"`
+	Tiles       *[]Tile      `json:"tiles,omitempty"`
 	TileUpdates []TileUpdate `json:"tile_updates,omitempty"`
-	TickAt      time.Time     `json:"tick_at"`
+	TickAt      time.Time    `json:"tick_at"`
 }
 
 // NormalizeTileRotationQuarter приводит произвольное целое к диапазону 0..3 (четверти оборота по часовой стрелке).
