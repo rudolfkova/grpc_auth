@@ -74,8 +74,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := h.registerConnection(conn, userID)
-
 	h.logger.Info("player connected",
 		slog.Int64("user_id", userID),
 		slog.String("email", email),
@@ -119,6 +117,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.app.PrepareCharacterJoin(userID, resp.Data)
 	}
 
+	out := h.registerConnection(conn, userID)
+
 	defer func() {
 		h.unregisterConnection(conn, userID, out, characterSessionActive, characterPersisted, characterPlay)
 	}()
@@ -139,7 +139,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if mt != websocket.TextMessage && mt != websocket.BinaryMessage {
 			continue
 		}
-		h.processIncomingEnvelope(conn, userID, data)
+		h.processIncomingEnvelope(out, userID, data)
 	}
 }
 

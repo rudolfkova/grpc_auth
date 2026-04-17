@@ -4,31 +4,38 @@ import (
 	"encoding/json"
 
 	"game/internal/domain/models"
-	"github.com/gorilla/websocket"
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
 )
 
-func (h *Handler) writeReject(conn *websocket.Conn, reason, message, reqType, reqService string) {
+func (h *Handler) enqueueOutbound(out chan gamekit.Envelope, env gamekit.Envelope) {
+	select {
+	case out <- env:
+	default:
+		h.telemetry.ObserveEventDropped("ws_out")
+	}
+}
+
+func (h *Handler) writeReject(out chan gamekit.Envelope, reason, message, reqType, reqService string) {
 	env, err := buildRejectEnvelope(reason, message, reqType, reqService)
 	if err != nil {
 		return
 	}
-	_ = conn.WriteJSON(env)
+	h.enqueueOutbound(out, env)
 }
 
-func (h *Handler) processIncomingEnvelope(conn *websocket.Conn, userID int64, data []byte) {
+func (h *Handler) processIncomingEnvelope(out chan gamekit.Envelope, userID int64, data []byte) {
 	var env gamekit.Envelope
 	if err := json.Unmarshal(data, &env); err != nil {
-		h.writeReject(conn, RejectReasonInvalidJSON, "message is not valid JSON", "", "")
+		h.writeReject(out, RejectReasonInvalidJSON, "message is not valid JSON", "", "")
 		return
 	}
 
 	if env.Service != gamekit.ServiceGame {
-		h.writeReject(conn, RejectReasonWrongService, "expected service \"game\"", env.Type, env.Service)
+		h.writeReject(out, RejectReasonWrongService, "expected service \"game\"", env.Type, env.Service)
 		return
 	}
 	if env.Type == "" {
-		h.writeReject(conn, RejectReasonMissingType, "field \"type\" is required", "", env.Service)
+		h.writeReject(out, RejectReasonMissingType, "field \"type\" is required", "", env.Service)
 		return
 	}
 
@@ -39,6 +46,6 @@ func (h *Handler) processIncomingEnvelope(conn *websocket.Conn, userID int64, da
 	})
 	if !ok {
 		h.telemetry.ObserveActionRejected(RejectReasonQueueFull)
-		h.writeReject(conn, RejectReasonQueueFull, "action queue is full, try again later", env.Type, env.Service)
+		h.writeReject(out, RejectReasonQueueFull, "action queue is full, try again later", env.Type, env.Service)
 	}
 }
