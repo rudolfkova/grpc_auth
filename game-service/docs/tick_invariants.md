@@ -31,6 +31,7 @@ and review.
   - otherwise send only `tile_updates`;
   - both can be empty on ticks without tile changes.
 - `tile_updates.op` is constrained to `upsert` and `remove`.
+- **Join snapshot:** after a successful WebSocket connect, the server enqueues one extra **per-connection** `state` with full `tiles` (and current `players`) before normal tick traffic. It does **not** advance the global full-tile sync timer (`lastFullTileSyncAt`). If the per-connection outbound queue is full, this message may be dropped (same backpressure rules as other WS sends).
 
 ## Queue and Delivery Semantics
 

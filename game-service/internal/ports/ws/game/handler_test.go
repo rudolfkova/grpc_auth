@@ -23,6 +23,50 @@ func (wsFakeEngine) SerializeWorld() ([]byte, error)              { return []byt
 func (wsFakeEngine) EnsurePlayerJoin(_ int64, _ gamekit.CharacterPlayData) {
 }
 func (wsFakeEngine) PlayerCharacterData(_ int64) ([]byte, error) { return []byte(`{}`), nil }
+func (wsFakeEngine) JoinStateSnapshot() gamekit.StatePayload     { return gamekit.StatePayload{} }
+
+// joinSnapFakeEngine — для проверки немедленного state с tiles после connect.
+type joinSnapFakeEngine struct{ wsFakeEngine }
+
+func (joinSnapFakeEngine) JoinStateSnapshot() gamekit.StatePayload {
+	tiles := []gamekit.Tile{{X: 7, Y: 8, Layer: 0, Texture: "join_marker"}}
+	return gamekit.StatePayload{
+		Players: []gamekit.Player{},
+		Tiles:   &tiles,
+		TickAt:  time.Now().UTC(),
+	}
+}
+
+func TestWSJoinSendsImmediateFullTileState(t *testing.T) {
+	const secret = "secret"
+	telemetry := gameapp.NewNoopTelemetry()
+	app := gameapp.NewService(slog.Default(), joinSnapFakeEngine{}, time.Second, 8, nil, nil, telemetry, 0)
+	h := NewHandler(slog.Default(), secret, app, telemetry)
+
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	conn := mustDialWS(t, srv.URL, makeToken(t, secret, 202))
+	defer conn.Close()
+
+	var got gamekit.Envelope
+	if err := conn.ReadJSON(&got); err != nil {
+		t.Fatalf("read first message: %v", err)
+	}
+	if got.Service != gamekit.ServiceGame || got.Type != gamekit.TypeState {
+		t.Fatalf("want game/state, got service=%q type=%q", got.Service, got.Type)
+	}
+	var st gamekit.StatePayload
+	if err := json.Unmarshal(got.Payload, &st); err != nil {
+		t.Fatalf("state unmarshal: %v", err)
+	}
+	if st.Tiles == nil || len(*st.Tiles) != 1 {
+		t.Fatalf("want one tile in join state, got %+v", st)
+	}
+	if (*st.Tiles)[0].Texture != "join_marker" || (*st.Tiles)[0].X != 7 || (*st.Tiles)[0].Y != 8 {
+		t.Fatalf("unexpected join tile %+v", (*st.Tiles)[0])
+	}
+}
 
 func TestWSRejectsWrongService(t *testing.T) {
 	const secret = "secret"
@@ -35,6 +79,7 @@ func TestWSRejectsWrongService(t *testing.T) {
 
 	conn := mustDialWS(t, srv.URL, makeToken(t, secret, 101))
 	defer conn.Close()
+	drainInitialJoinState(t, conn)
 
 	msg := gamekit.Envelope{
 		Service: "other",
@@ -75,6 +120,7 @@ func TestWSRejectsQueueFull(t *testing.T) {
 
 	conn := mustDialWS(t, srv.URL, makeToken(t, secret, 101))
 	defer conn.Close()
+	drainInitialJoinState(t, conn)
 
 	msg := gamekit.Envelope{
 		Service: gamekit.ServiceGame,
@@ -130,4 +176,16 @@ func mustDialWS(t *testing.T, httpURL, token string) *websocket.Conn {
 		t.Fatalf("dial websocket: %v", err)
 	}
 	return conn
+}
+
+// drainInitialJoinState читает первый персональный state после connect (полный tiles / join sync).
+func drainInitialJoinState(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+	var got gamekit.Envelope
+	if err := conn.ReadJSON(&got); err != nil {
+		t.Fatalf("read join state: %v", err)
+	}
+	if got.Service != gamekit.ServiceGame || got.Type != gamekit.TypeState {
+		t.Fatalf("want first message game/state, got service=%q type=%q", got.Service, got.Type)
+	}
 }

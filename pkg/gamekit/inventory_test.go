@@ -29,6 +29,24 @@ func TestTrySwapInventorySlots_rejectStorageInBackpack(t *testing.T) {
 	}
 }
 
+func TestPlayerInventory_ContainsItemDefID(t *testing.T) {
+	var inv PlayerInventory
+	if inv.ContainsItemDefID("key") {
+		t.Fatal("empty inv")
+	}
+	inv.Backpack[2] = "key"
+	if !inv.ContainsItemDefID("key") {
+		t.Fatal("want key in backpack")
+	}
+	if inv.ContainsItemDefID("gem") {
+		t.Fatal("no gem")
+	}
+	inv.HandMain = "gem"
+	if !inv.ContainsItemDefID("gem") {
+		t.Fatal("want gem in hand")
+	}
+}
+
 func TestParseInventorySlot(t *testing.T) {
 	if _, _, ok := ParseInventorySlot("backpack_9"); ok {
 		t.Fatal("expected invalid backpack index")

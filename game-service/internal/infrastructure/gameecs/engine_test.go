@@ -881,3 +881,108 @@ func TestEngine_spawnAfterFullSyncUsesTileUpdates(t *testing.T) {
 		t.Fatalf("tile_updates: %+v", st.TileUpdates)
 	}
 }
+
+func TestEngine_spawnDoorTriggerPairSpawnsClosedBody(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, _ := json.Marshal(map[string]any{
+		"item_def_id":     "door_trigger",
+		"texture_closed":  "stone",
+		"texture_open":    "grass",
+		"collision_layer": 2,
+	})
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
+		X: 1, Y: 1, Layer: 3, Texture: gamekit.InvisibleTileTextureKey, Blocks: false, InstanceArgs: inst,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var triggerOK, bodyOK bool
+	q := e.tileFilter.Query()
+	defer q.Close()
+	for q.Next() {
+		pos, lay, _, tex, sol := q.Get()
+		if pos.X == 1 && pos.Y == 1 {
+			if lay.Z == 3 && tex.Name == gamekit.InvisibleTileTextureKey && !sol.Blocks {
+				triggerOK = true
+			}
+			if lay.Z == 2 && tex.Name == "stone" && sol.Blocks {
+				bodyOK = true
+			}
+		}
+	}
+	if !triggerOK {
+		t.Fatal("expected trigger tile at layer 3")
+	}
+	if !bodyOK {
+		t.Fatal("expected closed body stone at layer 2")
+	}
+}
+
+func TestEngine_doorInteractTogglesBodyLayer(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := gamekit.NewDefaultCharacterPlayData()
+	d.Inventory.HandMain = "key"
+	e.EnsurePlayerJoin(1, d)
+	inst, _ := json.Marshal(map[string]any{
+		"item_def_id":    "door_trigger",
+		"texture_closed": "stone",
+		"texture_open":   "grass",
+	})
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
+		X: 2, Y: 2, Layer: 3, Texture: gamekit.InvisibleTileTextureKey, Blocks: false, InstanceArgs: inst,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	cx, cy := 2, 2
+	L := 3
+	interPayload, _ := json.Marshal(gamekit.InteractIntent{ItemDefID: "door_trigger", ClickX: &cx, ClickY: &cy, ClickLayer: &L})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: interPayload}})
+
+	e.mu.Lock()
+	var openBody bool
+	q := e.tileFilter.Query()
+	for q.Next() {
+		pos, lay, _, tex, sol := q.Get()
+		if pos.X == 2 && pos.Y == 2 && lay.Z == 2 && tex.Name == "grass" && !sol.Blocks {
+			openBody = true
+			break
+		}
+	}
+	q.Close()
+	e.mu.Unlock()
+	if !openBody {
+		t.Fatal("expected grass non-blocking on collision layer after first interact (open)")
+	}
+
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: interPayload}})
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var closedBody bool
+	q2 := e.tileFilter.Query()
+	defer q2.Close()
+	for q2.Next() {
+		pos, lay, _, tex, sol := q2.Get()
+		if pos.X == 2 && pos.Y == 2 && lay.Z == 2 && tex.Name == "stone" && sol.Blocks {
+			closedBody = true
+			break
+		}
+	}
+	if !closedBody {
+		t.Fatal("expected stone blocking on collision layer after second interact (close)")
+	}
+}

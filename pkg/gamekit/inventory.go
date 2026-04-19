@@ -169,6 +169,32 @@ func FirstEmptyBackpackSlot(inv *PlayerInventory) int {
 	return -1
 }
 
+// ContainsItemDefID возвращает true, если item_def_id (после trim) встречается в любом слоте.
+func (inv *PlayerInventory) ContainsItemDefID(itemDefID string) bool {
+	if inv == nil {
+		return false
+	}
+	want := strings.TrimSpace(itemDefID)
+	if want == "" {
+		return false
+	}
+	slots := []string{
+		inv.Armor, inv.Accessory1, inv.Accessory2,
+		inv.HandMain, inv.HandOff,
+	}
+	for _, s := range slots {
+		if strings.TrimSpace(s) == want {
+			return true
+		}
+	}
+	for i := range inv.Backpack {
+		if strings.TrimSpace(inv.Backpack[i]) == want {
+			return true
+		}
+	}
+	return false
+}
+
 // ChebyshevDist1 возвращает true, если клетки соседние по Чебышёву (включая диагональ, включая совпадение).
 func ChebyshevDist1(ax, ay, bx, by int) bool {
 	dx := ax - bx

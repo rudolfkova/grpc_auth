@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "steps": [
+    { "op": "require_inventory_item", "args": {} },
+    { "op": "door_apply_open_state", "args": {} }
+  ]
+}

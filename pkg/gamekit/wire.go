@@ -55,6 +55,9 @@ type HitIntent struct {
 	Damage   int   `json:"damage"`
 }
 
+// InvisibleTileTextureKey — wire-ключ 1×1 прозрачного PNG; интеракт и каталог задаются через instance_args.item_def_id.
+const InvisibleTileTextureKey = "invisible"
+
 // TileSpawnIntent — payload для TypeSpawnTile.
 // Layer по умолчанию 0; Rotation — четверти оборота по часовой стрелке (любое целое нормализуется к 0..3).
 type TileSpawnIntent struct {

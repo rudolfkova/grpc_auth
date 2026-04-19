@@ -86,6 +86,11 @@ func (s *Service) Events() <-chan models.Outbound {
 	return s.events
 }
 
+// JoinStateSnapshot делегирует движку: полный state с tiles для первого сообщения после подключения.
+func (s *Service) JoinStateSnapshot() gamekit.StatePayload {
+	return s.engine.JoinStateSnapshot()
+}
+
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.tickRate)
 	defer ticker.Stop()

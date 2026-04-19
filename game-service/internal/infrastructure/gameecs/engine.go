@@ -31,21 +31,22 @@ type Engine struct {
 
 	byUser map[int64]ecs.Entity
 
-	playerMapper      *ecs.Map7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite]
-	playerGearMapper  *ecs.Map1[gamekit.PlayerInventory]
-	tileMapper        *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
-	inventoryCatalog  *content.Catalog
-	tileFilter   *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
-	systems      *SystemRegistry
-	moveIntents  MoveIntentStore
+	playerMapper     *ecs.Map7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite]
+	playerGearMapper *ecs.Map1[gamekit.PlayerInventory]
+	playerFilter     *ecs.Filter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite]
+	tileMapper       *ecs.Map5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
+	inventoryCatalog *content.Catalog
+	tileFilter       *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid]
+	systems          *SystemRegistry
+	moveIntents      MoveIntentStore
 
 	moveApplyEvery   int
 	moveApplyCounter int
 	diagStride       diagStrideState
 
-	tileFullSyncEvery    time.Duration
-	lastFullTileSyncAt   time.Time
-	pendingTileUpdates   []gamekit.TileUpdate
+	tileFullSyncEvery  time.Duration
+	lastFullTileSyncAt time.Time
+	pendingTileUpdates []gamekit.TileUpdate
 }
 
 var _ ports.GameEngine = (*Engine)(nil)
@@ -72,15 +73,16 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int, opts EngineOptions
 		invCat = opts.Content.Catalog
 	}
 	e := &Engine{
-		world:              w,
-		byUser:             make(map[int64]ecs.Entity),
-		playerMapper:       playerMapper,
-		playerGearMapper:   playerGearMapper,
-		tileMapper:         tileMapper,
-		tileFilter:         tileFilter,
-		moveApplyEvery:     movementApplyEveryNTicks,
-		tileFullSyncEvery:  tileEvery,
-		inventoryCatalog:   invCat,
+		world:             w,
+		byUser:            make(map[int64]ecs.Entity),
+		playerMapper:      playerMapper,
+		playerGearMapper:  playerGearMapper,
+		playerFilter:      playerFilter,
+		tileMapper:        tileMapper,
+		tileFilter:        tileFilter,
+		moveApplyEvery:    movementApplyEveryNTicks,
+		tileFullSyncEvery: tileEvery,
+		inventoryCatalog:  invCat,
 	}
 	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter, opts.Content, opts.Logger, e)
 	e.systems = reg

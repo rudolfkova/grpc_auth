@@ -39,4 +39,5 @@ func (s *TileSpawnSystem) Update(ctx *TickContext) {
 	in.InstanceArgs = gamekit.NormalizeTileInstanceArgsJSON(in.InstanceArgs)
 
 	spawnTileAt(s.world, s.tiles, s.filter, in, s.engine)
+	spawnDoorTriggerClosedBodyIfNeeded(s.world, s.tiles, s.filter, in, s.engine)
 }

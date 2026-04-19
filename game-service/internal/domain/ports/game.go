@@ -18,6 +18,8 @@ type GameEngine interface {
 	EnsurePlayerJoin(userID int64, d gamekit.CharacterPlayData)
 	// PlayerCharacterData — JSON v1 для opaque character.data (позиция, HP, взгляд).
 	PlayerCharacterData(userID int64) ([]byte, error)
+	// JoinStateSnapshot — полный список tiles + players для немедленной синхронизации при WS connect (без ожидания глобального full-sync).
+	JoinStateSnapshot() gamekit.StatePayload
 }
 
 // SaveWorldRequest — входной контракт сохранения snapshot в world-service.

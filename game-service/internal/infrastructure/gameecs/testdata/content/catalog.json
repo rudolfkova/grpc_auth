@@ -6,6 +6,25 @@
       "name": "Gem on floor",
       "pickable": true
     },
+    "key": {
+      "id": "key",
+      "name": "Key",
+      "pickable": true
+    },
+    "door_trigger": {
+      "id": "door_trigger",
+      "name": "Door trigger",
+      "pickable": false,
+      "interact": {
+        "script": "door_unlock.json",
+        "args": {
+          "key_item_def_id": "key",
+          "texture_closed": "stone",
+          "texture_open": "grass",
+          "collision_layer": 2
+        }
+      }
+    },
     "test_lever": {
       "id": "test_lever",
       "name": "Test lever",

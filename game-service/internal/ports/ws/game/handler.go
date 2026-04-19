@@ -131,6 +131,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	h.enqueueJoinFullTileState(out, userID)
+
 	for {
 		mt, data, err := conn.ReadMessage()
 		if err != nil {

@@ -25,7 +25,16 @@ func NewSnapshotSystem(
 }
 
 func (s *SnapshotSystem) Update(ctx *TickContext) {
-	q := s.playerFilter.Query()
+	ctx.Players = collectPlayersFromWorld(s.playerFilter, s.invSnapshot)
+	ctx.Tiles = collectTilesFromWorld(s.tileFilter)
+}
+
+// collectPlayersFromWorld — единый путь построения среза игроков для state (тик и join-snapshot).
+func collectPlayersFromWorld(
+	playerFilter *ecs.Filter7[gamekit.PlayerRef, gamekit.GridPos, gamekit.Speed, gamekit.Health, gamekit.PlayerFace, gamekit.CharacterStats, gamekit.PlayerSprite],
+	invSnapshot func(ent ecs.Entity) gamekit.PlayerInventory,
+) []gamekit.Player {
+	q := playerFilter.Query()
 	defer q.Close()
 
 	out := make([]gamekit.Player, 0, 64)
@@ -45,8 +54,8 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 			sprite = gamekit.DefaultPlayerSprite
 		}
 		inv := gamekit.DefaultPlayerInventory()
-		if s.invSnapshot != nil {
-			inv = s.invSnapshot(ent)
+		if invSnapshot != nil {
+			inv = invSnapshot(ent)
 		}
 		out = append(out, gamekit.Player{
 			ID:        ref.UserID,
@@ -60,9 +69,14 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 			Inventory: inv,
 		})
 	}
-	ctx.Players = out
+	return out
+}
 
-	tq := s.tileFilter.Query()
+// collectTilesFromWorld — единый путь построения среза тайлов для state (тик и join-snapshot).
+func collectTilesFromWorld(
+	tileFilter *ecs.Filter5[gamekit.GridPos, gamekit.TileLayer, gamekit.TileFacing, gamekit.TileTexture, gamekit.TileSolid],
+) []gamekit.Tile {
+	tq := tileFilter.Query()
 	defer tq.Close()
 	tiles := make([]gamekit.Tile, 0, 64)
 	for tq.Next() {
@@ -80,5 +94,5 @@ func (s *SnapshotSystem) Update(ctx *TickContext) {
 		}
 		tiles = append(tiles, t)
 	}
-	ctx.Tiles = tiles
+	return tiles
 }

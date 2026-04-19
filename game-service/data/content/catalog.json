@@ -6,6 +6,32 @@
       "name": "Gem (pickable)",
       "pickable": true
     },
+    "key": {
+      "id": "key",
+      "name": "Key",
+      "pickable": true
+    },
+    "door_trigger": {
+      "id": "door_trigger",
+      "name": "Door trigger",
+      "pickable": false,
+      "interact": {
+        "script": "door_unlock.json",
+        "args": {
+          "key_item_def_id": "key",
+          "texture_closed": "door_close",
+          "texture_open": "door_open",
+          "collision_layer": 2
+        },
+        "editor_instance_args_example": {
+          "item_def_id": "door_trigger",
+          "key_item_def_id": "key",
+          "texture_closed": "door_close",
+          "texture_open": "door_open",
+          "collision_layer": 2
+        }
+      }
+    },
     "lever_sample": {
       "id": "lever_sample",
       "name": "Sample lever",

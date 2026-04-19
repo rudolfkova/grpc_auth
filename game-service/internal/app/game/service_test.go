@@ -31,6 +31,10 @@ func (f *fakeEngine) PlayerCharacterData(_ int64) ([]byte, error) {
 	return []byte(`{}`), nil
 }
 
+func (f *fakeEngine) JoinStateSnapshot() gamekit.StatePayload {
+	return gamekit.StatePayload{}
+}
+
 func TestCollectActionsDrainsIngressInOrder(t *testing.T) {
 	svc := NewService(nil, &fakeEngine{}, time.Second, 16, nil, nil, nil, 0)
 	for i := 0; i < 3; i++ {
