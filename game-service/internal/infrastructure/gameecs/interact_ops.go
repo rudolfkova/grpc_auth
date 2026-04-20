@@ -31,6 +31,157 @@ func registerGameContentOps(r *content.Runner, e *Engine) {
 		return nil
 	})
 
+	r.RegisterOp("require_item_in_slot", func(_ stdctx.Context, rcx *content.RunContext, args map[string]any) error {
+		host, ok := rcx.HostData.(*Engine)
+		if !ok || host == nil {
+			return fmt.Errorf("require_item_in_slot: invalid HostData")
+		}
+		slot := strings.TrimSpace(asStringDefault(args["slot"], ""))
+		itemID := strings.TrimSpace(asStringDefault(args["item_def_id"], ""))
+		if slot == "" {
+			return fmt.Errorf("require_item_in_slot: slot required")
+		}
+		if itemID == "" {
+			return fmt.Errorf("require_item_in_slot: item_def_id required")
+		}
+		ent, ok := host.byUser[rcx.PlayerID]
+		if !ok || !host.playerGearMapper.HasAll(ent) {
+			return fmt.Errorf("require_item_in_slot: player not found")
+		}
+		invPtr := host.playerGearMapper.Get(ent)
+		match, err := gamekit.InventorySlotHasItem(invPtr, slot, itemID)
+		if err != nil {
+			return fmt.Errorf("require_item_in_slot: %w", err)
+		}
+		if !match {
+			return fmt.Errorf("require_item_in_slot: slot %q does not contain %q", slot, itemID)
+		}
+		return nil
+	})
+
+	r.RegisterOp("give_item_to_backpack", func(_ stdctx.Context, rcx *content.RunContext, args map[string]any) error {
+		host, ok := rcx.HostData.(*Engine)
+		if !ok || host == nil {
+			return fmt.Errorf("give_item_to_backpack: invalid HostData")
+		}
+		id := strings.TrimSpace(asStringDefault(args["item_def_id"], ""))
+		if id == "" {
+			return fmt.Errorf("give_item_to_backpack: item_def_id required")
+		}
+		return host.GiveItemToPlayerBackpack(rcx.PlayerID, id)
+	})
+
+	r.RegisterOp("spawn_item_on_ground", func(_ stdctx.Context, rcx *content.RunContext, args map[string]any) error {
+		host, ok := rcx.HostData.(*Engine)
+		if !ok || host == nil {
+			return fmt.Errorf("spawn_item_on_ground: invalid HostData")
+		}
+		x, err := asInt(args["x"])
+		if err != nil {
+			return fmt.Errorf("spawn_item_on_ground: x: %w", err)
+		}
+		y, err := asInt(args["y"])
+		if err != nil {
+			return fmt.Errorf("spawn_item_on_ground: y: %w", err)
+		}
+		layer := gamekit.DroppedItemTileLayer
+		if v, has := args["layer"]; has {
+			layer, err = asInt(v)
+			if err != nil {
+				return fmt.Errorf("spawn_item_on_ground: layer: %w", err)
+			}
+		}
+		id := strings.TrimSpace(asStringDefault(args["item_def_id"], ""))
+		if id == "" {
+			return fmt.Errorf("spawn_item_on_ground: item_def_id required")
+		}
+		return host.SpawnPickableItemAt(x, y, layer, id)
+	})
+
+	// remove_interact_tile_at_click удаляет все тайлы в (click_x, click_y, click_layer) — «самоуничтожение» триггера на слое клика.
+	// Вызывается при уже удержанном mutex движка (InteractSystem внутри ProcessTick).
+	r.RegisterOp("remove_interact_tile_at_click", func(_ stdctx.Context, rcx *content.RunContext, args map[string]any) error {
+		host, ok := rcx.HostData.(*Engine)
+		if !ok || host == nil {
+			return fmt.Errorf("remove_interact_tile_at_click: invalid HostData")
+		}
+		x, err := asInt(args["click_x"])
+		if err != nil {
+			return fmt.Errorf("remove_interact_tile_at_click: click_x: %w", err)
+		}
+		y, err := asInt(args["click_y"])
+		if err != nil {
+			return fmt.Errorf("remove_interact_tile_at_click: click_y: %w", err)
+		}
+		clickLayer, err := asInt(args["click_layer"])
+		if err != nil {
+			return fmt.Errorf("remove_interact_tile_at_click: click_layer: %w", err)
+		}
+		host.removeTilesAtLayerRecorded(x, y, clickLayer)
+		return nil
+	})
+
+	// wood_harvest: топор в слоте → бросок ability vs dc → при провале только снять триггер; при успехе выдать reward в рюкзак и снять триггер (при полном рюкзаке ошибка, триггер остаётся).
+	r.RegisterOp("wood_harvest", func(_ stdctx.Context, rcx *content.RunContext, args map[string]any) error {
+		host, ok := rcx.HostData.(*Engine)
+		if !ok || host == nil {
+			return fmt.Errorf("wood_harvest: invalid HostData")
+		}
+		x, err := asInt(args["click_x"])
+		if err != nil {
+			return fmt.Errorf("wood_harvest: click_x: %w", err)
+		}
+		y, err := asInt(args["click_y"])
+		if err != nil {
+			return fmt.Errorf("wood_harvest: click_y: %w", err)
+		}
+		clickLayer, err := asInt(args["click_layer"])
+		if err != nil {
+			return fmt.Errorf("wood_harvest: click_layer: %w", err)
+		}
+		ent, ok := host.byUser[rcx.PlayerID]
+		if !ok || !host.playerMapper.HasAll(ent) || !host.playerGearMapper.HasAll(ent) {
+			return fmt.Errorf("wood_harvest: player not found")
+		}
+		invPtr := host.playerGearMapper.Get(ent)
+		if invPtr == nil {
+			return fmt.Errorf("wood_harvest: player not found")
+		}
+		slot := strings.TrimSpace(asStringDefault(args["required_slot"], gamekit.InvSlotHandMain))
+		reqItem := strings.TrimSpace(asStringDefault(args["required_item_def_id"], "axe"))
+		match, err := gamekit.InventorySlotHasItem(invPtr, slot, reqItem)
+		if err != nil {
+			return fmt.Errorf("wood_harvest: %w", err)
+		}
+		if !match {
+			return fmt.Errorf("wood_harvest: need %q in slot %q", reqItem, slot)
+		}
+		abStr := strings.TrimSpace(asStringDefault(args["ability"], "str"))
+		ability, okAb := gamekit.ParseAbility(abStr)
+		if !okAb {
+			return fmt.Errorf("wood_harvest: unknown ability %q", abStr)
+		}
+		dc := 14
+		if v, has := args["dc"]; has {
+			dc, err = asInt(v)
+			if err != nil {
+				return fmt.Errorf("wood_harvest: dc: %w", err)
+			}
+		}
+		_, _, _, _, _, st, _ := host.playerMapper.Get(ent)
+		res := gamekit.RollAbilityCheck(host.rng, *st, ability, dc)
+		if !res.Success {
+			host.removeTilesAtLayerRecorded(x, y, clickLayer)
+			return nil
+		}
+		reward := strings.TrimSpace(asStringDefault(args["reward_item_def_id"], "log"))
+		if err := host.tryGiveItemToPlayerBackpackUnlocked(rcx.PlayerID, reward); err != nil {
+			return fmt.Errorf("wood_harvest: %w", err)
+		}
+		host.removeTilesAtLayerRecorded(x, y, clickLayer)
+		return nil
+	})
+
 	// door_apply_open_state — переключает «тело» двери на collision_layer: закрыто ↔ открыто (texture_closed+blocks / texture_open).
 	// Имя op историческое; тайл триггера на click_layer не меняет.
 	doorToggleCollisionBody := func(_ stdctx.Context, rcx *content.RunContext, args map[string]any) error {

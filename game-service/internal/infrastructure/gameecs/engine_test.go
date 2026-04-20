@@ -2,6 +2,7 @@ package gameecs
 
 import (
 	"encoding/json"
+	"math/rand"
 	"path/filepath"
 	"testing"
 
@@ -1037,5 +1038,185 @@ func TestEngine_doorInteractTogglesBodyLayer(t *testing.T) {
 	}
 	if !closedBody {
 		t.Fatal("expected stone blocking on collision layer after second interact (close)")
+	}
+}
+
+func TestEngine_GiveItemToPlayerBackpack(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.EnsurePlayerJoin(1, gamekit.NewDefaultCharacterPlayData())
+	if err := e.GiveItemToPlayerBackpack(1, "floor_gem"); err != nil {
+		t.Fatal(err)
+	}
+	e.mu.Lock()
+	inv := *e.playerGearMapper.Get(e.EnsurePlayerEntity(1))
+	e.mu.Unlock()
+	if inv.Backpack[0] != "floor_gem" {
+		t.Fatalf("want floor_gem in backpack[0], got %+v", inv.Backpack)
+	}
+	for i := 1; i < gamekit.BackpackSlotCount; i++ {
+		if err := e.GiveItemToPlayerBackpack(1, "floor_gem"); err != nil {
+			t.Fatalf("fill slot %d: %v", i, err)
+		}
+	}
+	if err := e.GiveItemToPlayerBackpack(1, "floor_gem"); err == nil {
+		t.Fatal("expected error when backpack full")
+	}
+}
+
+func TestEngine_SpawnPickableItemAt(t *testing.T) {
+	e, err := NewEngine(nil, 1, EngineOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	x, y, layer := 4, 5, gamekit.DroppedItemTileLayer
+	if err := e.SpawnPickableItemAt(x, y, layer, "log"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.SpawnPickableItemAt(x, y, layer, "log"); err == nil {
+		t.Fatal("expected error when cell occupied")
+	}
+	e.mu.Lock()
+	rot, tex, inst, blocks, ok := e.readTileAtLayer(x, y, layer)
+	e.mu.Unlock()
+	if !ok || tex != "log" || blocks {
+		t.Fatalf("tile: ok=%v tex=%q blocks=%v", ok, tex, blocks)
+	}
+	_ = rot
+	var m map[string]any
+	_ = json.Unmarshal(inst, &m)
+	if m["item_def_id"] != "log" {
+		t.Fatalf("instance_args: %v", m)
+	}
+}
+
+func TestEngine_removeTilesAtLayerRecorded_interactTriggerGone(t *testing.T) {
+	e, err := NewEngine(nil, 1, EngineOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	x, y, layer := 9, 8, 4
+	e.mu.Lock()
+	spawnTileAt(e.world, e.tileMapper, e.tileFilter, gamekit.TileSpawnIntent{
+		X: x, Y: y, Layer: layer, Texture: "tree_trigger", Blocks: false,
+	}, e)
+	if ok := e.tileExistsAtLayer(x, y, layer); !ok {
+		t.Fatal("expected tile before remove")
+	}
+	e.removeTilesAtLayerRecorded(x, y, layer)
+	e.mu.Unlock()
+	e.mu.Lock()
+	ok := e.tileExistsAtLayer(x, y, layer)
+	e.mu.Unlock()
+	if ok {
+		t.Fatal("expected no tile after remove_interact_tile_at_click equivalent")
+	}
+}
+
+func TestEngine_woodHarvestSuccess(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{
+		Content: b,
+		RNG:     rand.New(rand.NewSource(0)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := gamekit.NewDefaultCharacterPlayData()
+	d.Inventory.HandMain = "axe"
+	e.EnsurePlayerJoin(1, d)
+	inst, _ := json.Marshal(map[string]any{"item_def_id": "tree_trigger"})
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
+		X: 7, Y: 8, Layer: 3, Texture: gamekit.InvisibleTileTextureKey, Blocks: false, InstanceArgs: inst,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	cx, cy, L := 7, 8, 3
+	interPayload, _ := json.Marshal(gamekit.InteractIntent{ItemDefID: "tree_trigger", ClickX: &cx, ClickY: &cy, ClickLayer: &L})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: interPayload}})
+	e.mu.Lock()
+	ent := e.EnsurePlayerEntity(1)
+	inv := *e.playerGearMapper.Get(ent)
+	triggerStill := e.tileExistsAtLayer(7, 8, 3)
+	e.mu.Unlock()
+	if inv.Backpack[0] != "log" || inv.HandMain != "axe" {
+		t.Fatalf("want log in backpack[0], got %+v", inv)
+	}
+	if triggerStill {
+		t.Fatal("tree trigger should be removed after success")
+	}
+}
+
+func TestEngine_woodHarvestNoAxe(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b, RNG: rand.New(rand.NewSource(0))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.EnsurePlayerJoin(1, gamekit.NewDefaultCharacterPlayData())
+	inst, _ := json.Marshal(map[string]any{"item_def_id": "tree_trigger"})
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
+		X: 1, Y: 1, Layer: 3, Texture: gamekit.InvisibleTileTextureKey, Blocks: false, InstanceArgs: inst,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	cx, cy, L := 1, 1, 3
+	interPayload, _ := json.Marshal(gamekit.InteractIntent{ItemDefID: "tree_trigger", ClickX: &cx, ClickY: &cy, ClickLayer: &L})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: interPayload}})
+	e.mu.Lock()
+	triggerStill := e.tileExistsAtLayer(1, 1, 3)
+	inv := *e.playerGearMapper.Get(e.EnsurePlayerEntity(1))
+	e.mu.Unlock()
+	if !triggerStill {
+		t.Fatal("trigger should remain without axe")
+	}
+	if inv.Backpack[0] != "" {
+		t.Fatalf("expected no loot, got %+v", inv.Backpack)
+	}
+}
+
+func TestEngine_woodHarvestFailRollRemovesTriggerNoLoot(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b, RNG: rand.New(rand.NewSource(0))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := gamekit.NewDefaultCharacterPlayData()
+	d.Inventory.HandMain = "axe"
+	e.EnsurePlayerJoin(1, d)
+	inst, _ := json.Marshal(map[string]any{"item_def_id": "tree_trigger_hard"})
+	spawnPayload, _ := json.Marshal(gamekit.TileSpawnIntent{
+		X: 2, Y: 2, Layer: 4, Texture: gamekit.InvisibleTileTextureKey, Blocks: false, InstanceArgs: inst,
+	})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: "spawn_tile", Payload: spawnPayload}})
+	cx, cy, L := 2, 2, 4
+	interPayload, _ := json.Marshal(gamekit.InteractIntent{ItemDefID: "tree_trigger_hard", ClickX: &cx, ClickY: &cy, ClickLayer: &L})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInteract, Payload: interPayload}})
+	e.mu.Lock()
+	inv := *e.playerGearMapper.Get(e.EnsurePlayerEntity(1))
+	gone := !e.tileExistsAtLayer(2, 2, 4)
+	e.mu.Unlock()
+	if !gone {
+		t.Fatal("trigger should be removed after failed roll")
+	}
+	if inv.Backpack[0] != "" {
+		t.Fatalf("no loot on fail, got %+v", inv.Backpack)
 	}
 }

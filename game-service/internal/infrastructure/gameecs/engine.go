@@ -2,6 +2,7 @@ package gameecs
 
 import (
 	"log/slog"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -22,6 +23,8 @@ type EngineOptions struct {
 	// TileFullSyncInterval — как часто в payload state отдавать полный список тайлов; между полными снимками — только tile_updates.
 	// <=0: по умолчанию 1s.
 	TileFullSyncInterval time.Duration
+	// RNG is the random source for ability checks and similar; nil uses math/rand with a time-based seed.
+	RNG *rand.Rand
 }
 
 // Engine — адаптер доменного порта GameEngine на Ark ECS.
@@ -47,6 +50,8 @@ type Engine struct {
 	tileFullSyncEvery  time.Duration
 	lastFullTileSyncAt time.Time
 	pendingTileUpdates []gamekit.TileUpdate
+
+	rng *rand.Rand
 }
 
 var _ ports.GameEngine = (*Engine)(nil)
@@ -72,6 +77,10 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int, opts EngineOptions
 	if opts.Content != nil && opts.Content.Catalog != nil {
 		invCat = opts.Content.Catalog
 	}
+	rng := opts.RNG
+	if rng == nil {
+		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
 	e := &Engine{
 		world:             w,
 		byUser:            make(map[int64]ecs.Entity),
@@ -83,6 +92,7 @@ func NewEngine(snapshot []byte, movementApplyEveryNTicks int, opts EngineOptions
 		moveApplyEvery:    movementApplyEveryNTicks,
 		tileFullSyncEvery: tileEvery,
 		inventoryCatalog:  invCat,
+		rng:               rng,
 	}
 	reg := NewSystemRegistry(w, playerMapper, playerFilter, tileMapper, tileFilter, opts.Content, opts.Logger, e)
 	e.systems = reg

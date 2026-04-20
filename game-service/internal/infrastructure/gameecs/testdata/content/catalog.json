@@ -86,6 +86,42 @@
       "name": "Axe",
       "pickable": true,
       "allow_hand": true
+    },
+    "log": {
+      "id": "log",
+      "name": "Log",
+      "pickable": true,
+      "allow_hand": true
+    },
+    "tree_trigger": {
+      "id": "tree_trigger",
+      "name": "Tree harvest",
+      "pickable": false,
+      "interact": {
+        "script": "wood_harvest.json",
+        "args": {
+          "required_slot": "hand_main",
+          "required_item_def_id": "axe",
+          "reward_item_def_id": "log",
+          "ability": "str",
+          "dc": 14
+        }
+      }
+    },
+    "tree_trigger_hard": {
+      "id": "tree_trigger_hard",
+      "name": "Tree harvest impossible DC",
+      "pickable": false,
+      "interact": {
+        "script": "wood_harvest_dc30.json",
+        "args": {
+          "required_slot": "hand_main",
+          "required_item_def_id": "axe",
+          "reward_item_def_id": "log",
+          "ability": "str",
+          "dc": 14
+        }
+      }
     }
   }
 }
