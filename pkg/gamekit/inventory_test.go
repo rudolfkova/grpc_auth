@@ -6,7 +6,7 @@ func TestTrySwapInventorySlots_hands(t *testing.T) {
 	var inv PlayerInventory
 	inv.HandMain = "sword"
 	inv.HandOff = "shield"
-	if !TrySwapInventorySlots(&inv, InvSlotHandMain, InvSlotHandOff, func(string) bool { return true }) {
+	if !TrySwapInventorySlots(&inv, InvSlotHandMain, InvSlotHandOff, func(_, _ string) bool { return true }) {
 		t.Fatal("expected swap ok")
 	}
 	if inv.HandMain != "shield" || inv.HandOff != "sword" {
@@ -18,8 +18,12 @@ func TestTrySwapInventorySlots_rejectStorageInBackpack(t *testing.T) {
 	var inv PlayerInventory
 	inv.Backpack[0] = "gem"
 	inv.HandMain = "big_bag"
-	ok := TrySwapInventorySlots(&inv, InvSlotHandMain, "backpack_0", func(id string) bool {
-		return id != "big_bag"
+	ok := TrySwapInventorySlots(&inv, InvSlotHandMain, "backpack_0", func(slot, id string) bool {
+		_, isBP, ok := ParseInventorySlot(slot)
+		if ok && isBP {
+			return id != "big_bag"
+		}
+		return true
 	})
 	if ok {
 		t.Fatal("expected reject putting big_bag into backpack")

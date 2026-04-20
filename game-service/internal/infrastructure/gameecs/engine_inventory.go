@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/rudolfkova/grpc_auth/pkg/gamekit"
+	"github.com/rudolfkova/grpc_auth/pkg/gamekit/content"
 
 	"github.com/mlange-42/ark/ecs"
 )
@@ -17,7 +18,7 @@ func (e *Engine) applyInventoryMoveLocked(userID int64, from, to string) {
 	if ptr == nil {
 		return
 	}
-	canBP := func(itemDefID string) bool {
+	canPlace := func(slot, itemDefID string) bool {
 		itemDefID = strings.TrimSpace(itemDefID)
 		if itemDefID == "" {
 			return true
@@ -25,13 +26,9 @@ func (e *Engine) applyInventoryMoveLocked(userID int64, from, to string) {
 		if e.inventoryCatalog == nil {
 			return true
 		}
-		def, ok := e.inventoryCatalog.Items[itemDefID]
-		if !ok {
-			return false
-		}
-		return !def.IsStorage
+		return content.ItemFitsInventorySlot(e.inventoryCatalog, itemDefID, slot)
 	}
-	gamekit.TrySwapInventorySlots(ptr, from, to, canBP)
+	gamekit.TrySwapInventorySlots(ptr, from, to, canPlace)
 }
 
 func (e *Engine) playerInventorySnapshotLocked(ent ecs.Entity) gamekit.PlayerInventory {

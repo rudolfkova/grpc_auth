@@ -15,8 +15,14 @@ type ItemDef struct {
 	Name     string `json:"name"`
 	Pickable bool   `json:"pickable"`
 	// IsStorage — предмет-«контейнер»; в рюкзак класть нельзя (нет сумки в сумке).
-	IsStorage bool          `json:"is_storage,omitempty"`
-	Interact  *InteractSpec `json:"interact,omitempty"`
+	IsStorage bool `json:"is_storage,omitempty"`
+	// AllowHand — можно класть в hand_main / hand_off (omit = false).
+	AllowHand bool `json:"allow_hand,omitempty"`
+	// AllowArmor — можно класть в armor (omit = false).
+	AllowArmor bool `json:"allow_armor,omitempty"`
+	// AllowAccessory — можно класть в accessory_1 / accessory_2 (omit = false).
+	AllowAccessory bool `json:"allow_accessory,omitempty"`
+	Interact       *InteractSpec `json:"interact,omitempty"`
 }
 
 // InteractSpec ссылка на файл сценария и аргументы по умолчанию (мержатся в каждый шаг).

@@ -126,8 +126,8 @@ func (inv *PlayerInventory) setSlot(slot, itemDefID string) bool {
 }
 
 // TrySwapInventorySlots меняет местами содержимое двух слотов (или no-op при одинаковых / невалидных).
-// toBackpackReject если целевой слот — рюкзак и itemDefID нельзя класть в рюкзак (is_storage).
-func TrySwapInventorySlots(inv *PlayerInventory, from, to string, canPlaceInBackpack func(itemDefID string) bool) bool {
+// canPlaceItem reports whether itemDefID (non-empty) may occupy slot.
+func TrySwapInventorySlots(inv *PlayerInventory, from, to string, canPlaceItem func(slot, itemDefID string) bool) bool {
 	from = strings.TrimSpace(from)
 	to = strings.TrimSpace(to)
 	if from == "" || to == "" || from == to {
@@ -144,10 +144,10 @@ func TrySwapInventorySlots(inv *PlayerInventory, from, to string, canPlaceInBack
 	if !ok1 || !ok2 {
 		return false
 	}
-	if strings.TrimSpace(a) != "" && !canPlaceInSlot(to, a, canPlaceInBackpack) {
+	if strings.TrimSpace(a) != "" && !canPlaceItem(to, a) {
 		return false
 	}
-	if strings.TrimSpace(b) != "" && !canPlaceInSlot(from, b, canPlaceInBackpack) {
+	if strings.TrimSpace(b) != "" && !canPlaceItem(from, b) {
 		return false
 	}
 	_ = inv.setSlot(from, b)
@@ -209,11 +209,4 @@ func ChebyshevDist1(ax, ay, bx, by int) bool {
 		return dx <= 1
 	}
 	return dy <= 1
-}
-
-func canPlaceInSlot(slot, itemDefID string, canPlaceInBackpack func(itemDefID string) bool) bool {
-	if _, isBP, ok := ParseInventorySlot(slot); ok && isBP {
-		return canPlaceInBackpack(itemDefID)
-	}
-	return true
 }

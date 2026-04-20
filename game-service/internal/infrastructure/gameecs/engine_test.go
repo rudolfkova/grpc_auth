@@ -273,7 +273,12 @@ func TestNewEngine_fromArkSerdeSnapshot(t *testing.T) {
 }
 
 func TestEngine_inventoryMoveSwapHands(t *testing.T) {
-	e, err := NewEngine(nil, 1, EngineOptions{})
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,6 +302,54 @@ func TestEngine_inventoryMoveSwapHands(t *testing.T) {
 	inv := st.Players[0].Inventory
 	if inv.HandMain != "axe" || inv.HandOff != "sword" {
 		t.Fatalf("after swap want axe/sword, got main=%q off=%q", inv.HandMain, inv.HandOff)
+	}
+}
+
+func TestEngine_inventoryMoveRejectsGemToArmor(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := gamekit.NewDefaultCharacterPlayData()
+	d.Inventory.Backpack[0] = "floor_gem"
+	e.EnsurePlayerJoin(1, d)
+	pl, _ := json.Marshal(gamekit.InventoryMoveIntent{From: "backpack_0", To: gamekit.InvSlotArmor})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInventoryMove, Payload: pl}})
+	e.mu.Lock()
+	ent := e.EnsurePlayerEntity(1)
+	inv := *e.playerGearMapper.Get(ent)
+	e.mu.Unlock()
+	if inv.Backpack[0] != "floor_gem" || inv.Armor != "" {
+		t.Fatalf("swap should be rejected: %+v", inv)
+	}
+}
+
+func TestEngine_inventoryMoveAllowsAxeFromBackpackToHand(t *testing.T) {
+	base := filepath.Join("testdata", "content")
+	b, err := content.LoadBundle(filepath.Join(base, "catalog.json"), filepath.Join(base, "scripts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewEngine(nil, 1, EngineOptions{Content: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := gamekit.NewDefaultCharacterPlayData()
+	d.Inventory.Backpack[0] = "axe"
+	e.EnsurePlayerJoin(1, d)
+	pl, _ := json.Marshal(gamekit.InventoryMoveIntent{From: "backpack_0", To: gamekit.InvSlotHandMain})
+	e.ProcessTick([]models.Action{{PlayerID: 1, Type: gamekit.TypeInventoryMove, Payload: pl}})
+	e.mu.Lock()
+	ent := e.EnsurePlayerEntity(1)
+	inv := *e.playerGearMapper.Get(ent)
+	e.mu.Unlock()
+	if inv.HandMain != "axe" || inv.Backpack[0] != "" {
+		t.Fatalf("want axe in hand and empty backpack[0], got %+v", inv)
 	}
 }
 

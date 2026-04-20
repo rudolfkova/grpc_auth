@@ -4,12 +4,14 @@
     "floor_gem": {
       "id": "floor_gem",
       "name": "Gem on floor",
-      "pickable": true
+      "pickable": true,
+      "allow_hand": true
     },
     "key": {
       "id": "key",
       "name": "Key",
-      "pickable": true
+      "pickable": true,
+      "allow_hand": true
     },
     "door_trigger": {
       "id": "door_trigger",
@@ -45,6 +47,7 @@
       "id": "tent_folded",
       "name": "Tent folded",
       "pickable": true,
+      "allow_hand": true,
       "interact": {
         "script": "tent_unfold_2x2.json",
         "args": {
@@ -71,6 +74,18 @@
           "folded_texture": "tent_folded"
         }
       }
+    },
+    "sword": {
+      "id": "sword",
+      "name": "Sword",
+      "pickable": false,
+      "allow_hand": true
+    },
+    "axe": {
+      "id": "axe",
+      "name": "Axe",
+      "pickable": true,
+      "allow_hand": true
     }
   }
 }
