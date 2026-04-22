@@ -1,0 +1,8 @@
+database_url = "postgres://messenger:messenger@host.docker.internal:15432/chat_db?sslmode=disable"
+test_database_url = "postgres://messenger:messenger@host.docker.internal:15432/chat_db?sslmode=disable"
+redis_addr = "host.docker.internal:16379"
+test_redis_addr = "host.docker.internal:16379"
+bind_addr = ":50052"
+log_level = "DEBUG"
+jwt_secret = "123"
+auth_service_addr = "host.docker.internal:50051"

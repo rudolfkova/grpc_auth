@@ -9,4 +9,5 @@ character-service-run
 config.toml
 .env
 .vscode/
-config-chat.toml
+# Локальный оверрайд в корне репо; deploy/docker/config-chat.toml в репозитории и нужен для Docker.
+/config-chat.toml
